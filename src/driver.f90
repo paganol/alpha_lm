@@ -61,6 +61,11 @@ contains
            P%outclfile=parse_string(handle,'output_cl','outputs/clhat.fits')
            P%endnamecl=parse_string(handle,'suffix_cl','.txt')
        endif
+       P%compute_biasalpha=parse_lgt(handle,'compute_alpha_bias',.true.)
+       if (P%compute_biasalpha) then
+          P%outbiasfile=parse_string(handle,'output_bias','outputs/bias.txt')
+          P%endnamebias=parse_string(handle,'suffix_bias','.txt')
+       endif
     endif
       
     call parse_finish (handle)

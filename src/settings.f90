@@ -16,7 +16,8 @@ module settings
      integer :: elloffset
      integer :: nsims,ssim
      character(len=FILENAMELEN) :: inmapfile, inclfile, outalmfile,outsigmafile,outclfile
-     logical :: compute_alphalm, compute_alphacl
+     character(len=FILENAMELEN) :: outbiasfile, endnamebias
+     logical :: compute_alphalm, compute_alphacl, compute_biasalpha
      real(dp) :: noiseE,noiseB
   end Type Params
 

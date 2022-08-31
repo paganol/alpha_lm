@@ -123,19 +123,39 @@ contains
     
   end subroutine read_beam
   
-  subroutine write_out_cls(outfile,cls,lmin)
-    real(dp), dimension(:) :: cls
-    character(len=FILENAMELEN),intent(in) ::  outfile
-    integer :: myunit,n,i,j,lmin
+  subroutine write_out_cls(filename,ssim,zerofill,endname,cls,lmin)
+    real(dp), dimension(:,:) :: cls
+    character(len=FILENAMELEN),intent(in) ::  filename,endname
+    character(len=FILENAMELEN) :: clname
+    integer :: myunit,lmin,nell,ct
+    character(len=16) :: simstr
+    character(len=1) :: strzerofill
+    integer(i4b) :: zerofill,nsims,ssim,isim,il
 
-    n=Size(cls,DIM=1)
-    
-    open(newunit=myunit,file=trim(outfile),status='replace',form='formatted') 
-    do i=1,n
-       write(myunit,'(I4,*(E15.7))') lmin+i-1,cls(i)  
-    enddo
-    
-    close(myunit)
+    nsims=Size(cls,dim=1)
+    nell=Size(cls,dim=2)-1
+
+    if (nsims .eq. 1) then
+       clname=filename
+       open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
+       do il=1,nell
+          write(myunit,'(I4,*(E15.7))') lmin+il-1,cls(1,il)
+       enddo
+       close(myunit)
+    else
+       write(strzerofill,fmt='(i1)') zerofill
+       ct=1
+       do isim=ssim,ssim+nsims-1
+          write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
+          clname=trim(filename)//trim(simstr)//trim(endname)
+          open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
+          do il=1,nell
+             write(myunit,'(I4,*(E15.7))') lmin+il-1,cls(ct,il)
+          enddo
+          close(myunit)
+          ct=ct+1
+       enddo
+    endif
     
   end subroutine write_out_cls
   
@@ -170,14 +190,15 @@ contains
     
   end subroutine write_out_alms
 
-  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms,lmin)
+  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms,lmin,bias)
     complex(dpc), dimension(1:,0:,0:) :: alms
+    real(dp), dimension(:,:),optional :: bias
     real(dp),allocatable, dimension(:,:) :: cl
     character(len=FILENAMELEN) :: filename,clname,endname
     integer(i4b) :: lmax,lmin
     character(len=16) :: simstr
     character(len=1) :: strzerofill
-    integer(i4b) :: ct,zerofill,nsims,ssim,isim
+    integer(i4b) :: ct,zerofill,nsims,ssim,isim,il,myunit
 
     nsims=Size(alms,DIM=1)
     lmax=Size(alms,DIM=2)-1
@@ -187,7 +208,12 @@ contains
     if (nsims .eq. 1) then
        clname=filename
        call alm2cl(lmax,lmax,alms(1:1,:,:),cl)
-       call write_out_cls(clname,cl(lmin:,1),lmin) 
+       if (present(bias)) cl(:,1) = cl(:,1) - bias(1,:) 
+       open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
+       do il=lmin,lmax
+          write(myunit,'(I4,*(E15.7))') il,cl(il,1)
+       enddo
+       close(myunit)
     else
        write(strzerofill,fmt='(i1)') zerofill
        ct=1
@@ -195,14 +221,33 @@ contains
           write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
           clname=trim(filename)//trim(simstr)//trim(endname)
           call alm2cl(lmax,lmax,alms(ct:ct,:,:),cl)
-          call write_out_cls(clname,cl(lmin:,1),lmin)
+          if (present(bias)) cl(:,1) = cl(:,1) - bias(ct,:)
+          open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
+          do il=lmin,lmax
+             write(myunit,'(I4,*(E15.7))') il,cl(il,1)
+          enddo
+          close(myunit)
           ct=ct+1
        enddo
     endif
 
     deallocate(cl)
 
-
   end subroutine compute_and_write_cl
+
+  subroutine compute_cls_from_alms(almE,almB,clEE,clBB)
+    complex(dpc), dimension(1:,0:,0:) :: almE,almB
+    real(dp), dimension(1:,0:) :: clEE, clBB
+    integer(i4b) :: nsims, lmax, isim
+
+    nsims=Size(almE,dim=1)
+    lmax=Size(almE,dim=2)-1    
+
+    do isim=1,nsims
+       call alm2cl(lmax,lmax,almE(isim:isim,:,:),clEE)
+       call alm2cl(lmax,lmax,almB(isim:isim,:,:),clBB)
+    enddo
+
+  end subroutine compute_cls_from_alms
 
 end module utils

@@ -21,12 +21,13 @@ program EB_estimator
   logical :: emmppos
   real(dp), allocatable, dimension(:) :: one_o_var,red_one_o_var,wig2,wigall
   real(dp), allocatable, dimension(:) :: F_EB,F_BE,clEEfid,clEEobs,clBBobs
+  real(dp), allocatable, dimension(:,:) :: clEEmap,clBBmap,biasalpha,red_biasalpha
   complex(dpc), allocatable, dimension(:,:,:) :: almE,almB,almalpha,red_almalpha
   complex(dpc), allocatable, dimension(:) :: curralmE,curralmB,curralmEstar,curralmBstar
   complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
-  real(dp) :: factor,exp_m,Glp,norm
-  integer :: t1=0,t2,t3,t4,clock_rate,clock_max
+  real(dp) :: factor,exp_m,Gl,Glp,norm
+  integer :: t1=0,t2,t3,t4,clock_rate,clock_max,myunit
   character(len=16) :: simstr
   character(len=1) :: strzerofill
   
@@ -69,6 +70,11 @@ program EB_estimator
         allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
         
         call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endnamemap,almE,almB)
+        if (Par%compute_biasalpha) then
+           allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+           allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+           call compute_cls_from_alms(almE,almB,clEEmap,clBBmap)
+        endif
      endif
   endif
   
@@ -90,6 +96,7 @@ program EB_estimator
   if (Par%compute_alphalm) then
      call mpi_bcast(Par%nsims,1,mpi_integer,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%ssim,1,mpi_integer,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%compute_biasalpha,1,mpi_logical,0,mpi_comm_world,mpierr)
   endif
 
   nele = Par%ellmax+Par%elloffset+1
@@ -97,6 +104,10 @@ program EB_estimator
      if (Par%compute_alphalm) then
         allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
         allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
+        if (Par%compute_biasalpha) then
+           allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+           allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+        endif
      endif
      allocate(clEEfid(0:Par%ellmax+Par%elloffset),clEEobs(0:Par%ellmax+Par%elloffset),clBBobs(0:Par%ellmax+Par%elloffset))
      allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
@@ -105,6 +116,10 @@ program EB_estimator
   if (Par%compute_alphalm) then
      call mpi_bcast(almE,Par%nsims*nele*nele,mpi_double_complex,0,mpi_comm_world, mpierr)
      call mpi_bcast(almB,Par%nsims*nele*nele,mpi_double_complex,0,mpi_comm_world, mpierr)
+     if (Par%compute_biasalpha) then
+        call mpi_bcast(clEEmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world, mpierr)
+        call mpi_bcast(clBBmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world, mpierr)
+     endif
   endif
   
   call mpi_bcast(clEEfid,nele,mpi_real8,0,mpi_comm_world, mpierr)
@@ -172,7 +187,11 @@ program EB_estimator
   
   if (myid .eq. 0) then
      if (Par%feedback .gt. 1) write(*,*) 'Write out sigma'
-     call write_out_cls(Par%outsigmafile,sqrt(1.0/red_one_o_var),Par%Lmin)
+     open(newunit=myunit,file=trim(Par%outsigmafile),status='replace',form='formatted')
+     do iL=Par%Lmin,Par%Lmax
+        write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/red_one_o_var(iL))
+     enddo
+     close(myunit)
   endif
   
   !! Compute alphalm
@@ -182,7 +201,12 @@ program EB_estimator
      allocate(almalpha(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
      allocate(curralmE(Par%nsims),curralmB(Par%nsims),curralmEstar(Par%nsims),curralmBstar(Par%nsims))
      almalpha=0
-      
+        
+     if (Par%compute_biasalpha) then 
+        allocate(biasalpha(1:Par%nsims,Par%Lmin:Par%Lmax))
+        biasalpha = 0
+     endif
+
      elementcount = 0
      do iL=Par%Lmin,Par%Lmax
         do iM=0,iL
@@ -196,6 +220,23 @@ program EB_estimator
                  F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1) 
                  F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1)
                  norm = sqrt((2.0*iell + 1)*(2*iL + 1)/FOURPI)
+                 !compute bias if requested
+                 if (Par%compute_biasalpha) then
+                    Gl = (2.0*iell + 1)/FOURPI
+                    do j = jmin,jmax
+                       if (j .eq. iell) then
+                          factor = 0.5
+                       else
+                          factor = 1
+                       endif
+                       do isim=1,Par%nsims
+                          biasalpha(isim,iL) = biasalpha(isim,iL) + factor * &
+                             Gl * (2.0*j + 1.0) * (wig2(j-jmin+1) * clEEfid(j))**2 * &
+                             clEEmap(isim,j) * clBBmap(isim,iell) / ( clEEobs(j) * clBBobs(iell) * &
+                             clBBobs(j) * clEEobs(iellp))
+                       enddo
+                   enddo
+                 endif
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
@@ -262,15 +303,41 @@ program EB_estimator
      call mpi_reduce(almalpha,red_almalpha,nele*nele*Par%nsims,mpi_double_complex,mpi_sum,0,mpi_comm_world,mpierr)
      deallocate(almalpha)
      call mpi_barrier(mpi_comm_world, mpierr)
+
+     if (Par%compute_biasalpha) then
+        if (myid .eq. 0) then
+           allocate(red_biasalpha(1:Par%nsims,Par%Lmin:Par%Lmax))
+           red_biasalpha=0.0
+        endif
+        call mpi_barrier(mpi_comm_world, mpierr)
+        call mpi_reduce(biasalpha,red_biasalpha,nele*Par%nsims,mpi_real8,mpi_sum,0,mpi_comm_world,mpierr)
+        deallocate(biasalpha)
+     endif
+
+     call mpi_barrier(mpi_comm_world, mpierr)
      
      if (myid .eq. 0) then
         do iL=Par%Lmin,Par%Lmax
            red_almalpha(:,iL,:) = red_almalpha(:,iL,:) / red_one_o_var(iL)
         enddo
+        if (Par%compute_biasalpha) then
+           do iL=Par%Lmin,Par%Lmax
+              red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var(iL)
+           enddo
+           if (Par%feedback .gt. 1) write(*,*) 'Write out bias'
+           call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,red_biasalpha,Par%Lmin)
+        endif
         if (Par%feedback .gt. 1) write(*,*) 'Write out alphalm'
         call write_out_alms(Par%outalmfile,Par%ssim,Par%zerofill,Par%endnamealm,red_almalpha)
-        if (Par%compute_alphacl) call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha,Par%Lmin)
+        if (Par%compute_alphacl) then
+           if (Par%compute_biasalpha) then
+              call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha,Par%Lmin,red_biasalpha)
+           else
+              call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha,Par%Lmin)
+           endif
+        endif
         deallocate(red_almalpha,red_one_o_var)
+        if (Par%compute_biasalpha) deallocate(red_biasalpha)
      endif
   else
      if (myid .eq. 0) deallocate(red_one_o_var)
