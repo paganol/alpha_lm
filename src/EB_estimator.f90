@@ -23,7 +23,7 @@ program EB_estimator
   complex(dpc), allocatable, dimension(:,:,:) :: almE,almB,almalpha,red_almalpha
   complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
-  real(dp) :: factor,exp_m
+  real(dp) :: factor,exp_m,Gl,Glp
   integer :: t1=0,t2,t3,t4,clock_rate,clock_max
   character(len=16) :: simstr
   character(len=1) :: strzerofill
@@ -46,7 +46,7 @@ program EB_estimator
      call read_parameter_file(Par)
      
      allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
-     call read_beam(bl,wl,Par%ellmax+Par%elloffset,Par%inbeamfile)
+     call read_beam(bl,wl,Par%inbeamfile)
      
      allocate(clfid(0:Par%ellmax+Par%elloffset,6))
      call read_cl(Par%inclfile,clfid)
@@ -61,15 +61,13 @@ program EB_estimator
      clEEobs = clfid(:,myEE) * wl(:,myEE) + nl(:,1)
      clBBobs = clfid(:,myBB) * wl(:,myBB) + nl(:,2)
      deallocate(clfid,nl)
-     
-     if (Par%feedback .gt. 1) write(*,*) 'Read maps'
-     
+
      if (Par%compute_alphalm) then
+        if (Par%feedback .gt. 1) write(*,*) 'Read maps'
         allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset)) 
         allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
         
-        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endname, &
-             Par%ellmax+Par%elloffset,almE,almB)
+        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endname,almE,almB)
      endif
   endif
   
@@ -137,6 +135,7 @@ program EB_estimator
            allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
            F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*wl(jmin:jmax,myEE)*wl(iellp,myEE))**2
            F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(iellp)*wl(iellp,myEE)*wl(jmin:jmax,myEE))**2
+           Glp = (2*iellp + 1)/FOURPI
            do j = jmin,jmax
               if (j .eq. iellp) then
                  factor = 0.5 
@@ -144,7 +143,7 @@ program EB_estimator
                  factor = 1
               endif
               one_o_var(iL) = one_o_var(iL) + factor * &
-                   (2*iellp + 1) * (2*j + 1) * &
+                   Glp * (2.0*j + 1.0) * &
                    (F_EB(j)/clEEobs(j)/clBBobs(iellp) + &
                    F_BE(j)/clBBobs(j)/clEEobs(iellp))
            enddo
@@ -153,7 +152,7 @@ program EB_estimator
      endif
      Lcount = Lcount + 1
   enddo
-  
+
   call mpi_barrier(mpi_comm_world, mpierr)
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of sigma done'
   !compute timing
@@ -193,6 +192,7 @@ program EB_estimator
                  allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
                  F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*wl(iell,myEE)*wl(jmin:jmax,myEE))**2             
                  F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*wl(jmin:jmax,myEE)*wl(iell,myEE))**2
+                 Gl = (2*iell + 1)/FOURPI
                  do iemm=-iell,iell
                     exp_m = -1.0**iemm
                     call Wigner3j(wigall, jminall, jmaxall, iL, iell, -iM-iemm , iM, iemm)
@@ -204,9 +204,9 @@ program EB_estimator
                        endif
                        
                        do isim=1,Par%nsims
-                          EB_csi = EB_csi + (2*iell + 1) * (2*j + 1) * &
+                          EB_csi = EB_csi + Gl * (2*j + 1) * &
                                conjg(almB(isim,j,abs(iM+iemm))) * wigall(j-jminall+1) * almE(isim,iell,abs(iemm)) * exp_m
-                          BE_csi = BE_csi + (2*iell + 1) * (2*j + 1) * &
+                          BE_csi = BE_csi + Gl * (2*j + 1) * &
                                conjg(almE(isim,j,abs(iM+iemm))) * wigall(j-jminall+1) * almB(isim,iell,abs(iemm)) * exp_m
                           almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
                                (F_EB(j) * EB_csi / clBBobs(iellp) / clEEobs(iell) + &
@@ -247,9 +247,8 @@ program EB_estimator
         call write_out_alms(Par%outalmfile,Par%ssim,Par%zerofill,Par%endname,red_almalpha)
         deallocate(red_almalpha,red_one_o_var)
      endif
-     
   else
-     deallocate(red_one_o_var)
+     if (myid .eq. 0) deallocate(red_one_o_var)
   endif
   
   call mpi_barrier(mpi_comm_world, mpierr)

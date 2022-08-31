@@ -1,9 +1,9 @@
 import numpy as np
 import healpy as hp
 
-lmax = 2000
-fwhm = 5 #arcmin
-nside = 512 
+lmax = 8000
+fwhm = 7.1 #arcmin
+nside = 2048
 
 bl = hp.gauss_beam(np.deg2rad(fwhm/60.),lmax,pol=True)
 wpix = hp.pixwin(nside,pol=True,lmax=lmax)

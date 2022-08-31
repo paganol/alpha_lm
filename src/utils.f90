@@ -36,7 +36,7 @@ contains
     endif
   end subroutine make_noise
   
-  subroutine read_maps_and_compute_alms(filename,ssim,zerofill,endname,lmax,almE,almB)
+  subroutine read_maps_and_compute_alms(filename,ssim,zerofill,endname,almE,almB)
     character(len=FILENAMELEN) :: filename,mapname,endname
     integer(i4b) :: lmax,nside,iter
     integer(i8b) :: npix
@@ -50,7 +50,8 @@ contains
     iter = 1
     
     nsims=size(almE,dim=1)
-    
+    lmax=size(almE,dim=2)-1    
+
     allocate(alms(1:3,0:lmax,0:lmax))
     
     if (nsims .eq. 1) then
@@ -82,33 +83,35 @@ contains
     
   end subroutine read_maps_and_compute_alms
    
-  subroutine read_cl(clfile,cl)
+  subroutine read_cl(filename,cl)
     real(dp),dimension(0:,1:) :: cl
-    character(len=FILENAMELEN),intent(in) ::  clfile
+    character(len=FILENAMELEN),intent(in) ::  filename
     integer :: lmax,myunit,ll,l
     character(len=2048) :: fakestring
     
     lmax=size(cl,dim=1)-1
     cl=0.0d0
-    
-    open(newunit=myunit,file=trim(clfile),status='old',form='formatted')
+ 
+    open(newunit=myunit,file=trim(filename),status='old',form='formatted')
     read(myunit,'(a)') fakestring
     if (scan(fakestring,'#') .eq. 0) rewind(myunit)
     do l=2,lmax
        read(myunit,*) ll,cl(l,myTT),cl(l,myEE),cl(l,myBB),cl(l,myTE)
-       cl(l,:) = cl(l,:)/l/(l+1)*TWOPI
+       cl(l,:) = cl(l,:)/ll/(ll+1)*TWOPI
     enddo
     close(myunit)
 
   end subroutine read_cl
 
 
-  subroutine read_beam(beam,window,lmax,beamfile)
+  subroutine read_beam(beam,window,beamfile)
     real(dp),dimension(0:,1:) , intent(out) :: window, beam
     integer(i4b) :: lmax
     character(len=80), DIMENSION(74) :: headercl
     character(len=FILENAMELEN) , intent(in) :: beamfile 
-    
+   
+    lmax=size(beam,dim=1)-1
+
     call fits2cl(trim(beamfile),beam,lmax,3,headercl)
     
     window(:,myTT)=beam(:,1)*beam(:,1)
