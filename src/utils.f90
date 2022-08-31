@@ -65,13 +65,13 @@ contains
     else
        ct=1
        write(strzerofill,fmt='(i1)') zerofill
-       write (simstr,fmt='(i'//TRIM(strzerofill)//'.'//TRIM(strzerofill)//')') ssim
-       mapname=TRIM(filename)//TRIM(simstr)//TRIM(endname)
+       write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') ssim
+       mapname=trim(filename)//trim(simstr)//trim(endname)
        npix = getsize_fits(trim(mapname),nside=nside)
        allocate(maps(0:npix-1,1:3))
        do isim=ssim,ssim+nsims-1
-          write (simstr,fmt='(i'//TRIM(strzerofill)//'.'//TRIM(strzerofill)//')') isim
-          mapname=TRIM(filename)//TRIM(simstr)//TRIM(endname)
+          write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
+          mapname=trim(filename)//trim(simstr)//trim(endname)
           call input_map(trim(mapname),maps, npix, 3)   
           call map2alm(nside, lmax, lmax, maps, alms)
           almE(ct,:,:)=alms(2,:,:)
@@ -154,25 +154,55 @@ contains
     
     call write_minimal_header(header, 'ALM', nlmax=lmax,nmmax=lmax,polar=.False.) 
     
-    
-    ct=1
     if (nsims .eq. 1) then
        almname=filename
        call dump_alms(trim(almname),alms(1,:,:),lmax,header,60,0)
     else
-       ct=1
        write(strzerofill,fmt='(i1)') zerofill
-       write (simstr,fmt='(i'//TRIM(strzerofill)//'.'//TRIM(strzerofill)//')') ssim
-       almname=TRIM(filename)//TRIM(simstr)//TRIM(endname)
+       ct=1
        do isim=ssim,ssim+nsims-1
-          write (simstr,fmt='(i'//TRIM(strzerofill)//'.'//TRIM(strzerofill)//')') isim
-          call dump_alms(trim(almname),alms(ct,:,:),lmax,header,60,0)
-          
+          write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
+          almname=trim(filename)//trim(simstr)//trim(endname)
+          call dump_alms(trim(almname),alms(ct,:,:),lmax,header,60,0)          
           ct=ct+1
        enddo
     endif
     
   end subroutine write_out_alms
 
+  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms,lmin)
+    complex(dpc), dimension(1:,0:,0:) :: alms
+    real(dp),allocatable, dimension(:,:) :: cl
+    character(len=FILENAMELEN) :: filename,clname,endname
+    integer(i4b) :: lmax,lmin
+    character(len=16) :: simstr
+    character(len=1) :: strzerofill
+    integer(i4b) :: ct,zerofill,nsims,ssim,isim
+
+    nsims=Size(alms,DIM=1)
+    lmax=Size(alms,DIM=2)-1
+
+    allocate(cl(0:lmax,1:1))
+
+    if (nsims .eq. 1) then
+       clname=filename
+       call alm2cl(lmax,lmax,alms(1:1,:,:),cl)
+       call write_out_cls(clname,cl(lmin:,1),lmin) 
+    else
+       write(strzerofill,fmt='(i1)') zerofill
+       ct=1
+       do isim=ssim,ssim+nsims-1
+          write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
+          clname=trim(filename)//trim(simstr)//trim(endname)
+          call alm2cl(lmax,lmax,alms(ct:ct,:,:),cl)
+          call write_out_cls(clname,cl(lmin:,1),lmin)
+          ct=ct+1
+       enddo
+    endif
+
+    deallocate(cl)
+
+
+  end subroutine compute_and_write_cl
 
 end module utils

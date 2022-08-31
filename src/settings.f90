@@ -11,12 +11,12 @@ module settings
   !parameters
   Type Params
      integer :: feedback
-     character(len=FILENAMELEN) :: inbeamfile, endname,innoisefile
+     character(len=FILENAMELEN) :: inbeamfile, endnamemap,endnamealm,endnamecl,innoisefile
      integer :: Lmin,Lmax,ellmin,ellmax,zerofill
      integer :: elloffset
      integer :: nsims,ssim
-     character(len=FILENAMELEN) :: inmapfile, inclfile, outalmfile,outsigmafile
-     logical :: compute_alphalm
+     character(len=FILENAMELEN) :: inmapfile, inclfile, outalmfile,outsigmafile,outclfile
+     logical :: compute_alphalm, compute_alphacl
      real(dp) :: noiseE,noiseB
   end Type Params
 

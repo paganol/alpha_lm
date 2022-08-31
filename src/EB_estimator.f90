@@ -17,17 +17,18 @@ program EB_estimator
   integer :: j,jmin,jmax,iellp, iell
   integer :: jminall,jmaxall
   integer :: isim,Lcount,iL,nele,elementcount
-  integer :: iemm, iM
+  integer :: iemm, iM, iemmp
+  logical :: emmppos
   real(dp), allocatable, dimension(:) :: one_o_var,red_one_o_var,wig2,wigall
   real(dp), allocatable, dimension(:) :: F_EB,F_BE,clEEfid,clEEobs,clBBobs
   complex(dpc), allocatable, dimension(:,:,:) :: almE,almB,almalpha,red_almalpha
+  complex(dpc), allocatable, dimension(:) :: curralmE,curralmB,curralmEstar,curralmBstar
   complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
-  real(dp) :: factor,exp_m,Gl,Glp
+  real(dp) :: factor,exp_m,Glp,norm
   integer :: t1=0,t2,t3,t4,clock_rate,clock_max
   character(len=16) :: simstr
   character(len=1) :: strzerofill
-  character(len=FILENAMELEN) :: filecl  
   
   !input parameters
   Type(Params) :: Par
@@ -67,7 +68,7 @@ program EB_estimator
         allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset)) 
         allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
         
-        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endname,almE,almB)
+        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endnamemap,almE,almB)
      endif
   endif
   
@@ -122,7 +123,7 @@ program EB_estimator
   
   !! Compute sigma
   
-  allocate(one_o_var(Par%Lmax-Par%Lmin+1))
+  allocate(one_o_var(Par%Lmin:Par%Lmax))
   one_o_var = 0.0
   
   Lcount = 0
@@ -160,7 +161,7 @@ program EB_estimator
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for sigma computation = ', real ( t2 - t1 ) / real ( clock_rate )    
   
   if (myid .eq. 0) then
-     allocate(red_one_o_var(Par%Lmax-Par%Lmin+1))
+     allocate(red_one_o_var(Par%Lmin:Par%Lmax))
      red_one_o_var=0.0
   endif
   
@@ -179,35 +180,57 @@ program EB_estimator
      
      call mpi_barrier(mpi_comm_world, mpierr)
      allocate(almalpha(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+     allocate(curralmE(Par%nsims),curralmB(Par%nsims),curralmEstar(Par%nsims),curralmBstar(Par%nsims))
      almalpha=0
-     
+      
      elementcount = 0
      do iL=Par%Lmin,Par%Lmax
         do iM=0,iL
            if (myid .eq. mod(elementcount,nproc)) then
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' doing L=', iL, ' and M=',iM
+              !loop ell
               do iell=Par%ellmin,Par%ellmax
                  allocate(wig2(iL+iell+1),wigall(iL+iell+1))
                  call Wigner3j(wig2, jmin, jmax, iL, iell, 2, 0, -2)
                  allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
-                 F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*wl(iell,myEE)*wl(jmin:jmax,myEE))**2             
-                 F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*wl(jmin:jmax,myEE)*wl(iell,myEE))**2
-                 Gl = (2*iell + 1)/FOURPI
+                 F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*wl(iell,myEE)*wl(jmin:jmax,myEE)            
+                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*wl(jmin:jmax,myEE)*wl(iell,myEE)
+                 norm = sqrt((2.0*iell + 1)*(2*iL + 1)/FOURPI)
+                 !loop emm
                  do iemm=-iell,iell
+                    iemmp = iemm-iM
                     exp_m = -1.0**iemm
-                    call Wigner3j(wigall, jminall, jmaxall, iL, iell, -iM-iemm , iM, iemm)
+                    call Wigner3j(wigall, jminall, jmaxall, iL, iell, iemmp , iM, -iemm)
+                    if (iemm .ge. 0) then
+                       curralmE = almE(:,iell,iemm)
+                       curralmB = almB(:,iell,iemm)
+                    else 
+                       curralmE = conjg(almE(:,iell,-iemm))
+                       curralmB = conjg(almB(:,iell,-iemm))
+                    endif
+                    emmppos = .true.
+                    if (iemmp .lt. 0) emmppos=.false.
+                    !loop ell'
                     do j = max(jminall,jmin),jmaxall
                        if (j .eq. iell) then
                           factor = 0.5
                        else
                           factor = 1
                        endif
-                       
+
+                       if (emmppos) then
+                          curralmEstar = conjg(almE(:,j,iemmp))
+                          curralmBstar = conjg(almB(:,j,iemmp))
+                       else
+                          curralmEstar = almE(:,j,-iemmp)
+                          curralmBstar = almB(:,j,-iemmp)
+                       endif
+                        
                        do isim=1,Par%nsims
-                          EB_csi = EB_csi + Gl * (2*j + 1) * &
-                               conjg(almB(isim,j,abs(iM+iemm))) * wigall(j-jminall+1) * almE(isim,iell,abs(iemm)) * exp_m
-                          BE_csi = BE_csi + Gl * (2*j + 1) * &
-                               conjg(almE(isim,j,abs(iM+iemm))) * wigall(j-jminall+1) * almB(isim,iell,abs(iemm)) * exp_m
+                          EB_csi = norm * sqrt(2.0*j + 1) * &
+                               curralmBstar(isim) * wigall(j-jminall+1) * curralmE(isim) * exp_m
+                          BE_csi = norm * sqrt(2.0*j + 1) * &
+                               curralmEstar(isim) * wigall(j-jminall+1) * curralmB(isim) * exp_m
                           almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
                                (F_EB(j) * EB_csi / clBBobs(iellp) / clEEobs(iell) + &
                                F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(iellp))
@@ -220,6 +243,7 @@ program EB_estimator
            elementcount = elementcount + 1
         enddo
      enddo
+     deallocate(curralmE,curralmB,curralmEstar,curralmBstar)
 
      call mpi_barrier(mpi_comm_world, mpierr)
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of alphalm done'
@@ -232,7 +256,7 @@ program EB_estimator
         allocate(red_almalpha(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
         red_almalpha=0.0
      endif
-     
+
      call mpi_barrier(mpi_comm_world, mpierr)
      nele = Par%Lmax+1
      call mpi_reduce(almalpha,red_almalpha,nele*nele*Par%nsims,mpi_double_complex,mpi_sum,0,mpi_comm_world,mpierr)
@@ -241,10 +265,11 @@ program EB_estimator
      
      if (myid .eq. 0) then
         do iL=Par%Lmin,Par%Lmax
-           red_almalpha(:,iL,:) = red_almalpha(:,iL,:) * red_one_o_var(iL)
+           red_almalpha(:,iL,:) = red_almalpha(:,iL,:) / red_one_o_var(iL)
         enddo
         if (Par%feedback .gt. 1) write(*,*) 'Write out alphalm'
-        call write_out_alms(Par%outalmfile,Par%ssim,Par%zerofill,Par%endname,red_almalpha)
+        call write_out_alms(Par%outalmfile,Par%ssim,Par%zerofill,Par%endnamealm,red_almalpha)
+        if (Par%compute_alphacl) call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha,Par%Lmin)
         deallocate(red_almalpha,red_one_o_var)
      endif
   else

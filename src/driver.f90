@@ -53,7 +53,13 @@ contains
        P%ssim=parse_int(handle,'first_sim',1)
        if (P%nsims .gt. 1) then
           P%zerofill=parse_int(handle,'zero_fill',4)
-          P%endname=parse_string(handle,'suffix_map','.fits')
+          P%endnamemap=parse_string(handle,'suffix_map','.fits')
+          P%endnamealm=parse_string(handle,'suffix_alm','.fits')
+       endif
+       P%compute_alphacl=parse_lgt(handle,'compute_alpha_cl',.true.)
+       if (P%compute_alphacl) then
+           P%outclfile=parse_string(handle,'output_cl','outputs/clhat.fits')
+           P%endnamecl=parse_string(handle,'suffix_cl','.txt')
        endif
     endif
       
