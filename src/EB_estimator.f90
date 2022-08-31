@@ -134,8 +134,8 @@ program EB_estimator
            allocate(wig2(iL+iellp+1))
            call Wigner3j(wig2, jmin, jmax, iL, iellp, -2, 0, 2)
            allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
-           F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*wl(jmin:jmax,myEE)*wl(iellp,myEE))**2
-           F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(iellp)*wl(iellp,myEE)*wl(jmin:jmax,myEE))**2
+           F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iellp,1))**2
+           F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(iellp)*bl(iellp,1)*bl(jmin:jmax,1))**2
            Glp = (2*iellp + 1)/FOURPI
            do j = jmin,jmax
               if (j .eq. iellp) then
@@ -193,8 +193,8 @@ program EB_estimator
                  allocate(wig2(iL+iell+1),wigall(iL+iell+1))
                  call Wigner3j(wig2, jmin, jmax, iL, iell, 2, 0, -2)
                  allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
-                 F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*wl(iell,myEE)*wl(jmin:jmax,myEE)            
-                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*wl(jmin:jmax,myEE)*wl(iell,myEE)
+                 F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1) 
+                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1)
                  norm = sqrt((2.0*iell + 1)*(2*iL + 1)/FOURPI)
                  !loop emm
                  do iemm=-iell,iell
