@@ -233,7 +233,7 @@ program EB_estimator
                           biasalpha(isim,iL) = biasalpha(isim,iL) + factor * &
                              Gl * (2.0*j + 1.0) * (wig2(j-jmin+1) * clEEfid(j))**2 * &
                              clEEmap(isim,j) * clBBmap(isim,iell) / ( clEEobs(j) * clBBobs(iell) * &
-                             clBBobs(j) * clEEobs(iellp))
+                             clBBobs(j) * clEEobs(iell))
                        enddo
                    enddo
                  endif

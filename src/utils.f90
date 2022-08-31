@@ -238,16 +238,22 @@ contains
   subroutine compute_cls_from_alms(almE,almB,clEE,clBB)
     complex(dpc), dimension(1:,0:,0:) :: almE,almB
     real(dp), dimension(1:,0:) :: clEE, clBB
+    real(dp),allocatable, dimension(:,:) :: cl
     integer(i4b) :: nsims, lmax, isim
 
     nsims=Size(almE,dim=1)
     lmax=Size(almE,dim=2)-1    
 
-    do isim=1,nsims
-       call alm2cl(lmax,lmax,almE(isim:isim,:,:),clEE)
-       call alm2cl(lmax,lmax,almB(isim:isim,:,:),clBB)
-    enddo
+    allocate(cl(0:lmax,1:1))
 
+    do isim=1,nsims
+       call alm2cl(lmax,lmax,almE(isim:isim,:,:),cl)
+       clEE(isim,:) = cl(:,1)
+       call alm2cl(lmax,lmax,almB(isim:isim,:,:),cl)
+       clBB(isim,:) = cl(:,1)
+    enddo
+ 
+    deallocate(cl)
   end subroutine compute_cls_from_alms
 
 end module utils
