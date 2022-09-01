@@ -10,7 +10,7 @@ rootslurmdir = rootglobal+'slurms/'
 codepath = rootglobal+'EB_estimator'
 
 
-namerun = 'cmbpollike_Glu'
+namerun = 'cmbpollike_Glu' #'plancklike_Glu'
 
 nside = 2048
 lmax_gen = 3*nside
@@ -35,11 +35,13 @@ slurmfile = rootslurmdir+'slurm_'+namerun+'.sl'
 if nsims < 2:
     mapfile = rootindir+'map_'+namerun+'.fits'
     almfile = rootoutdir+'alphalm_'+namerun+'.fits'
-    clfile = rootoutdir+'alphcl_'+namerun+'.txt'
+    clfile = rootoutdir+'alphacl_'+namerun+'.txt'
+    biasfile = rootoutdir+'alphabias_'+namerun+'.txt'
 else:
     mapfile = rootindir+'map_'+namerun+'_'
     almfile = rootoutdir+'alphalm_'+namerun+'_'
     clfile = rootoutdir+'alphacl_'+namerun+'_'
+    biasfile = rootoutdir+'alphabias_'+namerun+'_'
 
 sigmafile = rootoutdir+'sigma_'+namerun+'.txt'
 
@@ -86,6 +88,7 @@ feedback = 4
 
 compute_alpha_lm = F
 compute_alpha_cl = F
+compute_alpha_bias = F
 
 ellmin = {lmin}
 ellmax = {lmax}
@@ -106,6 +109,7 @@ first_sim = 1
 output_sigma = {sigmafile}
 output_alm = {almfile}
 output_cl = {clfile}
+output_bias = {biasfile}
 """
 params = params.format(**locals())
 f = open(paramfile, "wt")
@@ -135,5 +139,3 @@ slurm = slurm.format(**locals())
 f = open(slurmfile, "wt")
 f.write(slurm)
 f.close()
-
-

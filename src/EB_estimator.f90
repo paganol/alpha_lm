@@ -77,7 +77,11 @@ program EB_estimator
         endif
      endif
   endif
-  
+
+  write(0,*) clEEmap(1,:)
+  write(0,*) clBBmap(1,:)
+stop 
+
   call mpi_barrier(mpi_comm_world, mpierr)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
   !! Broadcast relevant parameters and variables
@@ -219,13 +223,13 @@ program EB_estimator
                  allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
                  F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1) 
                  F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1)
-                 norm = sqrt((2.0*iell + 1)*(2*iL + 1)/FOURPI)
+
                  !compute bias if requested
                  if (Par%compute_biasalpha) then
                     Gl = (2.0*iell + 1)/FOURPI
                     do j = jmin,jmax
                        if (j .eq. iell) then
-                          factor = 0.5
+                          factor = 0.25
                        else
                           factor = 1
                        endif
@@ -233,12 +237,14 @@ program EB_estimator
                           biasalpha(isim,iL) = biasalpha(isim,iL) + factor * &
                              Gl * (2.0*j + 1.0) * & 
                              (F_EB(j)**2 * clEEmap(isim,iell) * clBBmap(isim,j) / &
-                             (clEEobs(j) * clBBobs(iell) * clBBobs(j) * clEEobs(iell)) + &
-                             F_BE(j)**2 * clEEmap(isim,j) * clBBmap(isim,iell) / &
-                             (clBBobs(iell) * clEEobs(j) * clBBobs(iell) * clEEobs(j)))
+                             (clBBobs(j) * clBBobs(j) * clEEobs(iell) * clEEobs(iell)) + &
+                              F_BE(j)**2 * clEEmap(isim,j) * clBBmap(isim,iell) / &
+                             (clBBobs(iell) * clBBobs(iell) * clEEobs(j) * clEEobs(j)))
                        enddo
-                   enddo
+                    enddo
                  endif
+
+                 norm = sqrt((2.0*iell + 1)*(2.0*iL + 1)/FOURPI)
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
