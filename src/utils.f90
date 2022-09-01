@@ -133,7 +133,7 @@ contains
     integer(i4b) :: zerofill,nsims,ssim,isim,il
 
     nsims=Size(cls,dim=1)
-    nell=Size(cls,dim=2)-1
+    nell=Size(cls,dim=2)
 
     if (nsims .eq. 1) then
        clname=filename

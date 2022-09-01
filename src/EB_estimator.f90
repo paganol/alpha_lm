@@ -231,9 +231,11 @@ program EB_estimator
                        endif
                        do isim=1,Par%nsims
                           biasalpha(isim,iL) = biasalpha(isim,iL) + factor * &
-                             Gl * (2.0*j + 1.0) * (wig2(j-jmin+1) * clEEfid(j))**2 * &
-                             clEEmap(isim,j) * clBBmap(isim,iell) / ( clEEobs(j) * clBBobs(iell) * &
-                             clBBobs(j) * clEEobs(iell))
+                             Gl * (2.0*j + 1.0) * & 
+                             (F_EB(j)**2 * clEEmap(isim,iell) * clBBmap(isim,j) / &
+                             (clEEobs(j) * clBBobs(iell) * clBBobs(j) * clEEobs(iell)) + &
+                             F_BE(j)**2 * clEEmap(isim,j) * clBBmap(isim,iell) / &
+                             (clBBobs(iell) * clEEobs(j) * clBBobs(iell) * clEEobs(j)))
                        enddo
                    enddo
                  endif
@@ -322,7 +324,7 @@ program EB_estimator
         enddo
         if (Par%compute_biasalpha) then
            do iL=Par%Lmin,Par%Lmax
-              red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var(iL)
+              red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var(iL)**2
            enddo
            if (Par%feedback .gt. 1) write(*,*) 'Write out bias'
            call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,red_biasalpha,Par%Lmin)
