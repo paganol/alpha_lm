@@ -14,12 +14,12 @@ program EB_estimator
   
   !variables
   integer :: myid,nproc,mpierr
-  integer :: j,jmin,jmax,iellp, iell
+  integer :: j,jmin,jmax, iell
   integer :: jminall,jmaxall
   integer :: isim,Lcount,iL,nele,elementcount
   integer :: iemm, iM, iemmp
   logical :: emmppos
-  real(dp), allocatable, dimension(:) :: one_o_var,red_one_o_var,wig2,wigall
+  real(dp), allocatable, dimension(:) :: one_o_var,red_one_o_var,wig2,wigall,csi
   real(dp), allocatable, dimension(:) :: F_EB,F_BE,clEEfid,clEEobs,clBBobs
   real(dp), allocatable, dimension(:,:) :: clEEmap,clBBmap,biasalpha,red_biasalpha
   complex(dpc), allocatable, dimension(:,:,:) :: almE,almB,almalpha,red_almalpha
@@ -150,7 +150,7 @@ program EB_estimator
            call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
            allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
            F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1))**2
-           F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iellp,1))**2
+           F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1))**2
            Gl = (2*iell + 1)/FOURPI
            do j = jmin,jmax
               if (j .eq. iell) then
@@ -161,7 +161,7 @@ program EB_estimator
               one_o_var(iL) = one_o_var(iL) + factor * &
                    Gl * (2.0*j + 1.0) * &
                    (F_EB(j)/clEEobs(iell)/clBBobs(j) + &
-                   F_BE(j)/clBBobs(iell)/clEEobs(j))
+                    F_BE(j)/clBBobs(iell)/clEEobs(j))
            enddo
            deallocate(wig2,F_EB,F_BE)
         enddo
@@ -218,7 +218,7 @@ program EB_estimator
                  call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
                  allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
                  F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1)
-                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iellp,1)
+                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1)
                  !compute bias if requested
                  if (Par%compute_biasalpha) then
                     Gl = (2.0*iell + 1)/FOURPI
@@ -243,8 +243,8 @@ program EB_estimator
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
-                    exp_m = -1.0**iemm
                     call Wigner3j(wigall, jminall, jmaxall, iell, iL, iemmp , -iemm, iM)
+
                     if (iemm .ge. 0) then
                        curralmE = almE(:,iell,iemm)
                        curralmB = almB(:,iell,iemm)
@@ -252,8 +252,17 @@ program EB_estimator
                        curralmE = conjg(almE(:,iell,-iemm))
                        curralmB = conjg(almB(:,iell,-iemm))
                     endif
+
                     emmppos = .true.
                     if (iemmp .lt. 0) emmppos=.false.
+
+                    exp_m = -1.0**iemm
+                    allocate(csi(jminall:jmaxall))
+                    do j=jminall,jmaxall
+                       csi(j) = sqrt(2.0*j + 1) * wigall(j-jminall+1)
+                    enddo
+                    csi = csi * exp_m * norm
+
                     !loop ell'
                     do j = max(jminall,jmin),jmaxall
                        if (j .eq. iell) then
@@ -271,16 +280,14 @@ program EB_estimator
                        endif
                         
                        do isim=1,Par%nsims
-                          EB_csi = exp_m * norm * sqrt(2.0*j + 1) * &
-                               curralmE(isim) * curralmBstar(isim) * wigall(j-jminall+1)
-                          BE_csi = exp_m * norm * sqrt(2.0*j + 1) * &
-                               curralmB(isim) * curralmEstar(isim) * wigall(j-jminall+1)
-
+                          EB_csi = csi(j) * curralmE(isim) * curralmBstar(isim)
+                          BE_csi = csi(j) * curralmB(isim) * curralmEstar(isim)
                           almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
                                (F_EB(j) * EB_csi / clBBobs(j) / clEEobs(iell) + &
-                               F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(j))
+                                F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(j))
                        enddo
                     enddo
+                    deallocate(csi)
                  enddo
                  deallocate(wig2,wigall,F_EB,F_BE)
               enddo
