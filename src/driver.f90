@@ -63,6 +63,7 @@ contains
        endif
        P%compute_biasalpha=parse_lgt(handle,'compute_alpha_bias',.true.)
        if (P%compute_biasalpha) then
+          P%subtract_bias=parse_lgt(handle,'subtract_bias',.true.)
           P%outbiasfile=parse_string(handle,'output_bias','outputs/bias.txt')
           P%endnamebias=parse_string(handle,'suffix_bias','.txt')
        endif

@@ -104,7 +104,7 @@ contains
   end subroutine read_cl
 
 
-  subroutine read_beam(beam,window,beamfile)
+  subroutine read_beam(beamfile,beam,window)
     real(dp),dimension(0:,1:) , intent(out) :: window, beam
     integer(i4b) :: lmax
     character(len=80), DIMENSION(74) :: headercl

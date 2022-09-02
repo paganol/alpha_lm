@@ -48,8 +48,8 @@ program EB_estimator
      call read_parameter_file(Par)
      
      allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
-     call read_beam(bl,wl,Par%inbeamfile)
-     
+     call read_beam(Par%inbeamfile,bl,wl)
+
      allocate(clfid(0:Par%ellmax+Par%elloffset,6))
      call read_cl(Par%inclfile,clfid)
 
@@ -341,7 +341,7 @@ program EB_estimator
         if (Par%feedback .gt. 1) write(*,*) 'Write out alphalm'
         call write_out_alms(Par%outalmfile,Par%ssim,Par%zerofill,Par%endnamealm,red_almalpha)
         if (Par%compute_alphacl) then
-           if (Par%compute_biasalpha) then
+           if (Par%compute_biasalpha .and. Par%subtract_bias) then
               call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha,Par%Lmin,red_biasalpha)
            else
               call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha,Par%Lmin)

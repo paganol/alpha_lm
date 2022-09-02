@@ -10,21 +10,21 @@ rootslurmdir = rootglobal+'slurms/'
 codepath = rootglobal+'EB_estimator'
 
 
-namerun = 'cmbpollike_Glu' #'plancklike_Glu'
+namerun = 'wmaplike_Giorgia' #'plancklike_Giorgia' #'cmbpollike_Glu' #'plancklike_Glu'
 
-nside = 2048
+nside = 512
 lmax_gen = 3*nside
-fwhm = 5.0 #7.1 #arcmin
-noiseT = 3.0 #61.4
-noiseP = 4.3 #86.8  
+fwhm = 21.0 #5.0 #7.1 #arcmin
+noiseT = 40.0 #61.4
+noiseP = 894.6 #589.0#40.0*np.sqrt(2.) #86.8  
 
 nsims=1
 
 lmin = 2
-lmax = 2000#1500
+lmax = 1024#1500
 
-Lmin = 1
-Lmax = 1000
+Lmin = 0
+Lmax = 500
 
 #files
 beamfile = rootindir+'beam_'+namerun+'.fits'
@@ -89,6 +89,7 @@ feedback = 4
 compute_alpha_lm = F
 compute_alpha_cl = F
 compute_alpha_bias = F
+subtract_bias = F
 
 ellmin = {lmin}
 ellmax = {lmax}
