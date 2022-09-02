@@ -26,7 +26,7 @@ program EB_estimator
   complex(dpc), allocatable, dimension(:) :: curralmE,curralmB,curralmEstar,curralmBstar
   complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
-  real(dp) :: factor,exp_m,Gl,Glp,norm
+  real(dp) :: factor,exp_m,Gl,norm
   integer :: t1=0,t2,t3,t4,clock_rate,clock_max,myunit
   character(len=16) :: simstr
   character(len=1) :: strzerofill
@@ -77,10 +77,6 @@ program EB_estimator
         endif
      endif
   endif
-
-  write(0,*) clEEmap(1,:)
-  write(0,*) clBBmap(1,:)
-stop 
 
   call mpi_barrier(mpi_comm_world, mpierr)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
@@ -149,23 +145,23 @@ stop
   do iL=Par%Lmin,Par%Lmax
      if (myid .eq. mod(Lcount,nproc)) then
         if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' doing multipole ', iL
-        do iellp=Par%ellmin,Par%ellmax
-           allocate(wig2(iL+iellp+1))
-           call Wigner3j(wig2, jmin, jmax, iL, iellp, -2, 0, 2)
+        do iell=Par%ellmin,Par%ellmax
+           allocate(wig2(iL+iell+1))
+           call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
            allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
-           F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iellp,1))**2
-           F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(iellp)*bl(iellp,1)*bl(jmin:jmax,1))**2
-           Glp = (2*iellp + 1)/FOURPI
+           F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1))**2
+           F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iellp,1))**2
+           Gl = (2*iell + 1)/FOURPI
            do j = jmin,jmax
-              if (j .eq. iellp) then
+              if (j .eq. iell) then
                  factor = 0.5 
               else 
                  factor = 1
               endif
               one_o_var(iL) = one_o_var(iL) + factor * &
-                   Glp * (2.0*j + 1.0) * &
-                   (F_EB(j)/clEEobs(j)/clBBobs(iellp) + &
-                   F_BE(j)/clBBobs(j)/clEEobs(iellp))
+                   Gl * (2.0*j + 1.0) * &
+                   (F_EB(j)/clEEobs(iell)/clBBobs(j) + &
+                   F_BE(j)/clBBobs(iell)/clEEobs(j))
            enddo
            deallocate(wig2,F_EB,F_BE)
         enddo
@@ -219,11 +215,10 @@ stop
               !loop ell
               do iell=Par%ellmin,Par%ellmax
                  allocate(wig2(iL+iell+1),wigall(iL+iell+1))
-                 call Wigner3j(wig2, jmin, jmax, iL, iell, 2, 0, -2)
+                 call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
                  allocate(F_EB(jmin:jmax),F_BE(jmin:jmax))
-                 F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1) 
-                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1)
-
+                 F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1)
+                 F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iellp,1)
                  !compute bias if requested
                  if (Par%compute_biasalpha) then
                     Gl = (2.0*iell + 1)/FOURPI
@@ -249,7 +244,7 @@ stop
                  do iemm=-iell,iell
                     iemmp = iemm-iM
                     exp_m = -1.0**iemm
-                    call Wigner3j(wigall, jminall, jmaxall, iL, iell, iemmp , iM, -iemm)
+                    call Wigner3j(wigall, jminall, jmaxall, iell, iL, iemmp , -iemm, iM)
                     if (iemm .ge. 0) then
                        curralmE = almE(:,iell,iemm)
                        curralmB = almB(:,iell,iemm)
@@ -276,13 +271,14 @@ stop
                        endif
                         
                        do isim=1,Par%nsims
-                          EB_csi = norm * sqrt(2.0*j + 1) * &
-                               curralmBstar(isim) * wigall(j-jminall+1) * curralmE(isim) * exp_m
-                          BE_csi = norm * sqrt(2.0*j + 1) * &
-                               curralmEstar(isim) * wigall(j-jminall+1) * curralmB(isim) * exp_m
+                          EB_csi = exp_m * norm * sqrt(2.0*j + 1) * &
+                               curralmE(isim) * curralmBstar(isim) * wigall(j-jminall+1)
+                          BE_csi = exp_m * norm * sqrt(2.0*j + 1) * &
+                               curralmB(isim) * curralmEstar(isim) * wigall(j-jminall+1)
+
                           almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
-                               (F_EB(j) * EB_csi / clBBobs(iellp) / clEEobs(iell) + &
-                               F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(iellp))
+                               (F_EB(j) * EB_csi / clBBobs(j) / clEEobs(iell) + &
+                               F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(j))
                        enddo
                     enddo
                  enddo

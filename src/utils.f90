@@ -47,7 +47,7 @@ contains
     complex(dpc),allocatable,dimension(:,:,:) :: alms   
     complex(dpc),dimension(1:,0:,0:) :: almE,almB
     
-    iter = 1
+    iter = 3
     
     nsims=size(almE,dim=1)
     lmax=size(almE,dim=2)-1    
@@ -59,7 +59,7 @@ contains
        npix = getsize_fits(trim(mapname),nside=nside)
        allocate(maps(0:npix-1,1:3))
        call input_map(trim(mapname),maps, npix, 3)   
-       call map2alm(nside, lmax, lmax, maps, alms)
+       call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
        almE(1,:,:)=alms(2,:,:)
        almB(1,:,:)=alms(3,:,:)
     else
@@ -73,7 +73,7 @@ contains
           write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
           mapname=trim(filename)//trim(simstr)//trim(endname)
           call input_map(trim(mapname),maps, npix, 3)   
-          call map2alm(nside, lmax, lmax, maps, alms)
+          call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
           almE(ct,:,:)=alms(2,:,:)
           almB(ct,:,:)=alms(3,:,:)
           ct=ct+1
