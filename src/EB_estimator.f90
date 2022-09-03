@@ -24,7 +24,6 @@ program EB_estimator
   real(dp), allocatable, dimension(:,:) :: clEEmap,clBBmap,biasalpha,red_biasalpha
   complex(dpc), allocatable, dimension(:,:,:) :: almE,almB,almalpha,red_almalpha
   complex(dpc), allocatable, dimension(:) :: curralmE,curralmB,curralmEstar,curralmBstar
-  complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
   real(dp) :: factor,exp_m,Gl,norm  
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct,zerofill
@@ -50,18 +49,18 @@ program EB_estimator
      if (Par%feedback .gt. 2) call system_clock(t0,clock_rate,clock_max)
 
      
-     allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
+     allocate(bl(0:Par%ellmax,3),wl(0:Par%ellmax,6))
      call read_beam(Par%inbeamfile,bl,wl)
 
-     allocate(clfid(0:Par%ellmax+Par%elloffset,6))
+     allocate(clfid(0:Par%ellmax,6))
      call read_cl(Par%inclfile,clfid)
 
-     allocate(nl(0:Par%ellmax+Par%elloffset,2))
+     allocate(nl(0:Par%ellmax,2))
      call make_noise(Par%innoisefile,nl,Par%noiseE,Par%noiseB) 
      
-     allocate(clEEfid(0:Par%ellmax+Par%elloffset))
-     allocate(clEEobs(0:Par%ellmax+Par%elloffset))
-     allocate(clBBobs(0:Par%ellmax+Par%elloffset))
+     allocate(clEEfid(0:Par%ellmax))
+     allocate(clEEobs(0:Par%ellmax))
+     allocate(clBBobs(0:Par%ellmax))
      clEEfid = clfid(:,myEE)
      clEEobs = clfid(:,myEE) * wl(:,myEE) + nl(:,1)
      clBBobs = clfid(:,myBB) * wl(:,myBB) + nl(:,2)
@@ -81,14 +80,13 @@ program EB_estimator
   call mpi_bcast(Par%Lmax,1,mpi_integer,0,mpi_comm_world, mpierr)
   call mpi_bcast(Par%ellmin,1,mpi_integer,0,mpi_comm_world, mpierr)
   call mpi_bcast(Par%ellmax,1,mpi_integer,0,mpi_comm_world, mpierr)
-  call mpi_bcast(Par%elloffset,1,mpi_integer,0,mpi_comm_world, mpierr)
   call mpi_bcast(Par%compute_alphalm,1,mpi_logical,0,mpi_comm_world,mpierr)
 
-  nele = Par%ellmax+Par%elloffset+1
+  nele = Par%ellmax+1
 
   if (myid .ne. 0) then
-     allocate(clEEfid(0:Par%ellmax+Par%elloffset),clEEobs(0:Par%ellmax+Par%elloffset),clBBobs(0:Par%ellmax+Par%elloffset))
-     allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
+     allocate(clEEfid(0:Par%ellmax),clEEobs(0:Par%ellmax),clBBobs(0:Par%ellmax))
+     allocate(bl(0:Par%ellmax,3),wl(0:Par%ellmax,6))
   endif
   call mpi_bcast(clEEfid,nele,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clEEobs,nele,mpi_real8,0,mpi_comm_world, mpierr)
@@ -105,8 +103,8 @@ program EB_estimator
      call mpi_bcast(Par%zerofill,1,mpi_integer,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%endnamemap,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read maps'
-     allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
-     allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))     
+     allocate(almE(Par%nsims,0:Par%ellmax,0:Par%ellmax))
+     allocate(almB(Par%nsims,0:Par%ellmax,0:Par%ellmax))     
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
            call read_map_and_compute_alms(Par%inmapfile,Par%niter,almE,almB,1)
@@ -133,8 +131,8 @@ program EB_estimator
        call mpi_allreduce(mpi_in_place,almB,Par%nsims*nele*nele,mpi_double_complex,mpi_sum,mpi_comm_world,mpierr)
     endif
     if (Par%compute_biasalpha) then
-       allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
-       allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+       allocate(clEEmap(Par%nsims,0:Par%ellmax))
+       allocate(clBBmap(Par%nsims,0:Par%ellmax))
        if  (myid .eq. 0) call compute_cls_from_alms(almE,almB,clEEmap,clBBmap)
        call mpi_barrier(mpi_comm_world, mpierr)
        call mpi_bcast(clEEmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)

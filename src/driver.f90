@@ -32,8 +32,6 @@ contains
     P%Lmin=parse_int(handle,'Lmin',1)
     P%Lmax=parse_int(handle,'Lmax',100)
 
-    P%elloffset=parse_int(handle,'ell_offset',P%Lmax+1)
-
     P%inclfile=parse_string(handle,'cl_file','inputs/cls.dat') !order TT EE BB TE
 
     P%inbeamfile=parse_string(handle,'beam_file','inputs/beam.fits')

@@ -14,7 +14,6 @@ codepath = rootcode+'EB_estimator'
 namerun = 'litebirdlike'#'wmaplike_Giorgia' #'plancklike_Giorgia' #'cmbpollike_Glu' #'plancklike_Glu'
 
 nside = 256
-lmax_gen = 3*nside
 fwhm = 30.0 #5.0 #7.1 #arcmin
 noiseT = 2.0 #61.4
 noiseP = 2.0*np.sqrt(2.0) #589.0#40.0*np.sqrt(2.) #86.8  
@@ -23,6 +22,8 @@ nsims=100
 
 lmin = 2
 lmax = 512#1500
+
+lmax_gen = lmax
 
 Lmin = 0
 Lmax = 500
