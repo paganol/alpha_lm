@@ -27,7 +27,8 @@ program EB_estimator
   complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
   real(dp) :: factor,exp_m,Gl,norm  
-  integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit
+  integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct,zerofill
+  character(len=FILENAMELEN) :: mapname
   character(len=16) :: simstr
   character(len=1) :: strzerofill
   
@@ -40,14 +41,14 @@ program EB_estimator
   call mpi_comm_rank(mpi_comm_world, myid, mpierr)
   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-  !! Master reads parameters and does some stuff: reads maks and covmats, computes inverted masks
+  !! Master reads parameters and does some stuff: reads maps and computes alms
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t0, clock_rate, clock_max)
 
   if (myid .eq. 0) then 
-     if (Par%feedback .gt. 0) write(*,*) 'Reading parameters'
-     
      call read_parameter_file(Par)
+     if (Par%feedback .gt. 0) write(0,*) 'Reading parameters'
+     if (Par%feedback .gt. 2) call system_clock(t0,clock_rate,clock_max)
+
      
      allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
      call read_beam(Par%inbeamfile,bl,wl)
@@ -66,18 +67,6 @@ program EB_estimator
      clBBobs = clfid(:,myBB) * wl(:,myBB) + nl(:,2)
      deallocate(clfid,nl)
 
-     if (Par%compute_alphalm) then
-        if (Par%feedback .gt. 1) write(*,*) 'Read maps'
-        allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset)) 
-        allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
-        
-        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endnamemap,Par%niter,almE,almB)
-        if (Par%compute_biasalpha) then
-           allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
-           allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
-           call compute_cls_from_alms(almE,almB,clEEmap,clBBmap)
-        endif
-     endif
   endif
 
   call mpi_barrier(mpi_comm_world, mpierr)
@@ -95,49 +84,72 @@ program EB_estimator
   call mpi_bcast(Par%elloffset,1,mpi_integer,0,mpi_comm_world, mpierr)
   call mpi_bcast(Par%compute_alphalm,1,mpi_logical,0,mpi_comm_world,mpierr)
 
-  if (Par%compute_alphalm) then
-     call mpi_bcast(Par%nsims,1,mpi_integer,0,mpi_comm_world,mpierr)
-     call mpi_bcast(Par%ssim,1,mpi_integer,0,mpi_comm_world,mpierr)
-     call mpi_bcast(Par%compute_biasalpha,1,mpi_logical,0,mpi_comm_world,mpierr)
-  endif
-
   nele = Par%ellmax+Par%elloffset+1
+
   if (myid .ne. 0) then
-     if (Par%compute_alphalm) then
-        allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
-        allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
-        if (Par%compute_biasalpha) then
-           allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
-           allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
-        endif
-     endif
      allocate(clEEfid(0:Par%ellmax+Par%elloffset),clEEobs(0:Par%ellmax+Par%elloffset),clBBobs(0:Par%ellmax+Par%elloffset))
      allocate(bl(0:Par%ellmax+Par%elloffset,3),wl(0:Par%ellmax+Par%elloffset,6))
   endif
-  
-  if (Par%compute_alphalm) then
-     call mpi_bcast(almE,Par%nsims*nele*nele,mpi_double_complex,0,mpi_comm_world, mpierr)
-     call mpi_bcast(almB,Par%nsims*nele*nele,mpi_double_complex,0,mpi_comm_world, mpierr)
-     if (Par%compute_biasalpha) then
-        call mpi_bcast(clEEmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world, mpierr)
-        call mpi_bcast(clBBmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world, mpierr)
-     endif
-  endif
-  
   call mpi_bcast(clEEfid,nele,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clEEobs,nele,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clBBobs,nele,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(bl,3*nele,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(wl,6*nele,mpi_real8,0,mpi_comm_world, mpierr)
-  
+
+  call mpi_barrier(mpi_comm_world, mpierr)
+  if (Par%compute_alphalm) then
+     call mpi_bcast(Par%nsims,1,mpi_integer,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%ssim,1,mpi_integer,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%compute_biasalpha,1,mpi_logical,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%inmapfile,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%zerofill,1,mpi_integer,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%endnamemap,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+     if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read maps'
+     allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
+     allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))     
+     if (Par%nsims .eq. 1) then
+        if (myid .eq. 0) then
+           call read_map_and_compute_alms(Par%inmapfile,Par%niter,almE,almB,1)
+        endif
+        call mpi_barrier(mpi_comm_world, mpierr)
+        call mpi_bcast(almE,Par%nsims*nele*nele,mpi_double_complex,0,mpi_comm_world, mpierr)
+        call mpi_bcast(almB,Par%nsims*nele*nele,mpi_double_complex,0,mpi_comm_world, mpierr)       
+     else
+       almE=0
+       almB=0
+       ct=1
+       write(strzerofill,fmt='(i1)') Par%zerofill
+       do isim=Par%ssim,Par%ssim+Par%nsims-1
+          if (myid .eq. mod(ct,nproc)) then
+             if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
+             write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
+             mapname=trim(Par%inmapfile)//trim(simstr)//trim(Par%endnamemap)
+             call read_map_and_compute_alms(mapname,Par%niter,almE,almB,ct)
+          endif
+          ct=ct+1
+       enddo
+       call mpi_barrier(mpi_comm_world, mpierr)
+       call mpi_allreduce(mpi_in_place,almE,Par%nsims*nele*nele,mpi_double_complex,mpi_sum,mpi_comm_world,mpierr)
+       call mpi_allreduce(mpi_in_place,almB,Par%nsims*nele*nele,mpi_double_complex,mpi_sum,mpi_comm_world,mpierr)
+    endif
+    if (Par%compute_biasalpha) then
+       allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+       allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
+       if  (myid .eq. 0) call compute_cls_from_alms(almE,almB,clEEmap,clBBmap)
+       call mpi_barrier(mpi_comm_world, mpierr)
+       call mpi_bcast(clEEmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
+       call mpi_bcast(clBBmap,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
+    endif
+  endif
+
   call mpi_barrier(mpi_comm_world, mpierr)
   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
   !! Start E operator computation
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Starting Computation'
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t1, clock_rate, clock_max)
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for initialization = ', real ( t1 - t0 ) / real ( clock_rate )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock(t1, clock_rate, clock_max)
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for initialization = ', real( t1 - t0 ) / real ( clock_rate )
   !! Compute sigma
   
   allocate(one_o_var(Par%Lmin:Par%Lmax))
@@ -175,7 +187,7 @@ program EB_estimator
   call mpi_barrier(mpi_comm_world, mpierr)
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of sigma done'
   !compute timing
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t2, clock_rate, clock_max )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock( t2, clock_rate, clock_max )
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for sigma computation = ', real ( t2 - t1 ) / real ( clock_rate )    
   
   if (myid .eq. 0) then
@@ -196,7 +208,8 @@ program EB_estimator
      enddo
      close(myunit)
   endif
-  
+
+  call mpi_barrier(mpi_comm_world, mpierr) 
   !! Compute alphalm
   if (Par%compute_alphalm) then
      
@@ -232,13 +245,11 @@ program EB_estimator
                           else
                              factor = Gl * (2.0*j + 1.0)
                           endif
-                          do isim=1,Par%nsims
-                             biasalpha(isim,iL) = biasalpha(isim,iL) + factor * & 
-                                (F_EB(j)**2 * clEEmap(isim,iell) * clBBmap(isim,j) / &
-                                (clBBobs(j) * clBBobs(j) * clEEobs(iell) * clEEobs(iell)) + &
-                                 F_BE(j)**2 * clEEmap(isim,j) * clBBmap(isim,iell) / &
-                                (clBBobs(iell) * clBBobs(iell) * clEEobs(j) * clEEobs(j)))
-                          enddo
+                          biasalpha(:,iL) = biasalpha(:,iL) + factor * & 
+                             (F_EB(j)**2 * clEEmap(:,iell) * clBBmap(:,j) / &
+                             (clBBobs(j) * clBBobs(j) * clEEobs(iell) * clEEobs(iell)) + &
+                              F_BE(j)**2 * clEEmap(:,j) * clBBmap(:,iell) / &
+                             (clBBobs(iell) * clBBobs(iell) * clEEobs(j) * clEEobs(j)))
                        endif
                     enddo
                  endif
@@ -283,14 +294,10 @@ program EB_estimator
                              curralmEstar = almE(:,j,-iemmp)
                              curralmBstar = almB(:,j,-iemmp)
                           endif
-                        
-                          do isim=1,Par%nsims
-                             EB_csi = csi(j) * curralmE(isim) * curralmBstar(isim)
-                             BE_csi = csi(j) * curralmB(isim) * curralmEstar(isim)
-                             almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
-                                  (F_EB(j) * EB_csi / clBBobs(j) / clEEobs(iell) + &
-                                   F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(j))
-                          enddo
+                    
+                          almalpha(:,iL,iM) = almalpha(:,iL,iM) + factor * &
+                             (F_EB(j) * csi(j) * curralmE * curralmBstar / clBBobs(j) / clEEobs(iell) + &
+                              F_BE(j) * csi(j) * curralmB * curralmEstar / clBBobs(iell) / clEEobs(j)) 
                        endif
                     enddo
                     deallocate(csi)
@@ -305,7 +312,7 @@ program EB_estimator
 
      call mpi_barrier(mpi_comm_world, mpierr)
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of alphalm done'
-     if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t3, clock_rate, clock_max )
+     if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock( t3, clock_rate, clock_max )
      if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write(0,*) 'Elapsed real time for alphalm computation = ', real ( t3 - t2 ) / real ( clock_rate )
 
      call mpi_barrier(mpi_comm_world, mpierr)
@@ -362,7 +369,7 @@ program EB_estimator
   
   call mpi_barrier(mpi_comm_world, mpierr)
   
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t4, clock_rate, clock_max )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock( t4, clock_rate, clock_max )
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for total computation = ', real ( t4 - t1 ) / real ( clock_rate )
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for computation and initialization = ', real ( t4 - t0 ) / real ( clock_rate )
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'End Program'  

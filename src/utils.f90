@@ -80,6 +80,28 @@ contains
     deallocate(maps,alms)
     
   end subroutine read_maps_and_compute_alms
+
+  subroutine read_map_and_compute_alms(filename,iter,almE,almB,sim)
+    character(len=FILENAMELEN) :: filename
+    integer(i4b) :: lmax,nside,iter,sim
+    integer(i8b) :: npix
+    real(dp),allocatable,dimension(:,:) :: maps
+    complex(dpc),allocatable,dimension(:,:,:) :: alms
+    complex(dpc),dimension(:,0:,0:) :: almE,almB
+
+    lmax=size(almE,dim=2)-1
+
+    allocate(alms(1:3,0:lmax,0:lmax))
+
+    npix = getsize_fits(trim(filename),nside=nside)
+    allocate(maps(0:npix-1,1:3))
+    call input_map(trim(filename),maps, npix, 3)
+    call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
+    almE(sim,:,:)=alms(2,:,:)
+    almB(sim,:,:)=alms(3,:,:)
+    deallocate(maps,alms)
+
+  end subroutine read_map_and_compute_alms
    
   subroutine read_cl(filename,cl)
     real(dp),dimension(0:,1:) :: cl

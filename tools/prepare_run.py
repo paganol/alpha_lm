@@ -1,13 +1,14 @@
 import numpy as np
 import healpy as hp
 
-rootglobal='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/alpha_lm/'
+rootcode='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/alpha_lm/'
+rootglobal='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/runs/'
 
 rootindir = rootglobal+'inputs/'
 rootoutdir = rootglobal+'outputs/'
 rootparamdir = rootglobal+'params/'
 rootslurmdir = rootglobal+'slurms/'
-codepath = rootglobal+'EB_estimator'
+codepath = rootcode+'EB_estimator'
 
 
 namerun = 'litebirdlike'#'wmaplike_Giorgia' #'plancklike_Giorgia' #'cmbpollike_Glu' #'plancklike_Glu'
@@ -24,7 +25,7 @@ lmin = 2
 lmax = 512#1500
 
 Lmin = 0
-Lmax = 100
+Lmax = 500
 
 #files
 beamfile = rootindir+'beam_'+namerun+'.fits'

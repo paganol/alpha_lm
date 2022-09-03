@@ -34,7 +34,7 @@ ifneq ($(findstring r000u,$(HOST)), )
 #LIBS = -L$(HEALPIX)/lib -lhealpix -lsharp -L$(CFITSIO)/lib -lcfitsio
 #marconi - intel
 F90C= mpiifort
-F90FLAGS= -O3 -march=native -funroll-loops -fopenmp #-check bounds -traceback #-g -check all -fpe0 -warn -traceback -debug extended -check bounds
+F90FLAGS= -O3 -mkl -march=native -funroll-loops -fopenmp #-check bounds -traceback #-g -check all -fpe0 -warn -traceback -debug extended -check bounds
 INCLUDES= -I. -I/usr/local/include -I$(HEALPIX_INCLUDE) -I/usr/include
 LIBS= -L. -L$(HEALPIX_LIB) -lhealpix -L$(CFITSIO_LIB) -lcfitsio -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm
 endif
