@@ -26,8 +26,8 @@ program EB_estimator
   complex(dpc), allocatable, dimension(:) :: curralmE,curralmB,curralmEstar,curralmBstar
   complex(dpc) :: EB_csi, BE_csi
   real(dp), allocatable,dimension(:,:) :: clfid,wl,bl,nl
-  real(dp) :: factor,exp_m,Gl,norm
-  integer :: t1=0,t2,t3,t4,clock_rate,clock_max,myunit
+  real(dp) :: factor,exp_m,Gl,norm  
+  integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit
   character(len=16) :: simstr
   character(len=1) :: strzerofill
   
@@ -42,6 +42,8 @@ program EB_estimator
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
   !! Master reads parameters and does some stuff: reads maks and covmats, computes inverted masks
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t0, clock_rate, clock_max)
+
   if (myid .eq. 0) then 
      if (Par%feedback .gt. 0) write(*,*) 'Reading parameters'
      
@@ -135,7 +137,7 @@ program EB_estimator
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(*,*) 'Starting Computation'
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t1, clock_rate, clock_max)
-  
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for initialization = ', real ( t1 - t0 ) / real ( clock_rate )
   !! Compute sigma
   
   allocate(one_o_var(Par%Lmin:Par%Lmax))
@@ -152,16 +154,17 @@ program EB_estimator
            F_EB = (2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1))**2
            F_BE = (2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1))**2
            Gl = (2*iell + 1)/FOURPI
-           do j = jmin,jmax
-              if (j .eq. iell) then
-                 factor = 0.5 
-              else 
-                 factor = 1
+           do j = jmin,min(jmax,Par%ellmax)
+              if ((j .ge. iell) .and. (mod(iL+iell+j,2).eq.0)) then
+                 if (j .eq. iell) then
+                    factor = 0.25 * Gl * (2.0*j + 1.0)
+                 else 
+                    factor = Gl * (2.0*j + 1.0)
+                 endif
+                 one_o_var(iL) = one_o_var(iL) + factor * &
+                      (F_EB(j)/clEEobs(iell)/clBBobs(j) + &
+                       F_BE(j)/clBBobs(iell)/clEEobs(j))                  
               endif
-              one_o_var(iL) = one_o_var(iL) + factor * &
-                   Gl * (2.0*j + 1.0) * &
-                   (F_EB(j)/clEEobs(iell)/clBBobs(j) + &
-                    F_BE(j)/clBBobs(iell)/clEEobs(j))
            enddo
            deallocate(wig2,F_EB,F_BE)
         enddo
@@ -199,8 +202,8 @@ program EB_estimator
      
      call mpi_barrier(mpi_comm_world, mpierr)
      allocate(almalpha(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
-     allocate(curralmE(Par%nsims),curralmB(Par%nsims),curralmEstar(Par%nsims),curralmBstar(Par%nsims))
      almalpha=0
+     allocate(curralmE(Par%nsims),curralmB(Par%nsims),curralmEstar(Par%nsims),curralmBstar(Par%nsims))
         
      if (Par%compute_biasalpha) then 
         allocate(biasalpha(1:Par%nsims,Par%Lmin:Par%Lmax))
@@ -222,24 +225,25 @@ program EB_estimator
                  !compute bias if requested
                  if (Par%compute_biasalpha) then
                     Gl = (2.0*iell + 1)/FOURPI
-                    do j = jmin,jmax
-                       if (j .eq. iell) then
-                          factor = 0.25
-                       else
-                          factor = 1
+                    do j = jmin,min(jmax,Par%ellmax)
+                       if ((j .ge. iell) .and. (mod(iL+iell+j,2) .eq. 0)) then
+                          if (j .eq. iell) then
+                             factor = 0.25 * Gl * (2.0*j + 1.0)
+                          else
+                             factor = Gl * (2.0*j + 1.0)
+                          endif
+                          do isim=1,Par%nsims
+                             biasalpha(isim,iL) = biasalpha(isim,iL) + factor * & 
+                                (F_EB(j)**2 * clEEmap(isim,iell) * clBBmap(isim,j) / &
+                                (clBBobs(j) * clBBobs(j) * clEEobs(iell) * clEEobs(iell)) + &
+                                 F_BE(j)**2 * clEEmap(isim,j) * clBBmap(isim,iell) / &
+                                (clBBobs(iell) * clBBobs(iell) * clEEobs(j) * clEEobs(j)))
+                          enddo
                        endif
-                       do isim=1,Par%nsims
-                          biasalpha(isim,iL) = biasalpha(isim,iL) + factor * &
-                             Gl * (2.0*j + 1.0) * & 
-                             (F_EB(j)**2 * clEEmap(isim,iell) * clBBmap(isim,j) / &
-                             (clBBobs(j) * clBBobs(j) * clEEobs(iell) * clEEobs(iell)) + &
-                              F_BE(j)**2 * clEEmap(isim,j) * clBBmap(isim,iell) / &
-                             (clBBobs(iell) * clBBobs(iell) * clEEobs(j) * clEEobs(j)))
-                       enddo
                     enddo
                  endif
 
-                 norm = sqrt((2.0*iell + 1)*(2.0*iL + 1)/FOURPI)
+                 norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
@@ -259,33 +263,35 @@ program EB_estimator
                     exp_m = -1.0**iemm
                     allocate(csi(jminall:jmaxall))
                     do j=jminall,jmaxall
-                       csi(j) = sqrt(2.0*j + 1) * wigall(j-jminall+1)
+                       csi(j) = sqrt(2.0*j + 1.0) * wigall(j-jminall+1)
                     enddo
                     csi = csi * exp_m * norm
 
                     !loop ell'
-                    do j = max(jminall,jmin),jmaxall
-                       if (j .eq. iell) then
-                          factor = 0.5
-                       else
-                          factor = 1
-                       endif
+                    do j = max(jminall,jmin),min(jmaxall,Par%ellmax)
+                       if ((j .ge. iell) .and. (mod(iL+iell+j,2) .eq. 0)) then
+                          if (j .eq. iell) then
+                             factor = 0.5
+                          else
+                             factor = 1.0
+                          endif
 
-                       if (emmppos) then
-                          curralmEstar = conjg(almE(:,j,iemmp))
-                          curralmBstar = conjg(almB(:,j,iemmp))
-                       else
-                          curralmEstar = almE(:,j,-iemmp)
-                          curralmBstar = almB(:,j,-iemmp)
-                       endif
+                          if (emmppos) then
+                             curralmEstar = conjg(almE(:,j,iemmp))
+                             curralmBstar = conjg(almB(:,j,iemmp))
+                          else
+                             curralmEstar = almE(:,j,-iemmp)
+                             curralmBstar = almB(:,j,-iemmp)
+                          endif
                         
-                       do isim=1,Par%nsims
-                          EB_csi = csi(j) * curralmE(isim) * curralmBstar(isim)
-                          BE_csi = csi(j) * curralmB(isim) * curralmEstar(isim)
-                          almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
-                               (F_EB(j) * EB_csi / clBBobs(j) / clEEobs(iell) + &
-                                F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(j))
-                       enddo
+                          do isim=1,Par%nsims
+                             EB_csi = csi(j) * curralmE(isim) * curralmBstar(isim)
+                             BE_csi = csi(j) * curralmB(isim) * curralmEstar(isim)
+                             almalpha(isim,iL,iM) = almalpha(isim,iL,iM) + factor * &
+                                  (F_EB(j) * EB_csi / clBBobs(j) / clEEobs(iell) + &
+                                   F_BE(j) * BE_csi / clBBobs(iell) / clEEobs(j))
+                          enddo
+                       endif
                     enddo
                     deallocate(csi)
                  enddo
@@ -358,6 +364,8 @@ program EB_estimator
   
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t4, clock_rate, clock_max )
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for total computation = ', real ( t4 - t1 ) / real ( clock_rate )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for computation and initialization = ', real ( t4 - t0 ) / real ( clock_rate )
+  write (*,*) t0, t1,t2,t3,t4
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(*,*) 'End Program'  
   call mpi_finalize(mpierr)
   
