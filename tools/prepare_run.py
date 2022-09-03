@@ -10,21 +10,21 @@ rootslurmdir = rootglobal+'slurms/'
 codepath = rootglobal+'EB_estimator'
 
 
-namerun = 'wmaplike_Giorgia' #'plancklike_Giorgia' #'cmbpollike_Glu' #'plancklike_Glu'
+namerun = 'litebirdlike'#'wmaplike_Giorgia' #'plancklike_Giorgia' #'cmbpollike_Glu' #'plancklike_Glu'
 
-nside = 512
+nside = 256
 lmax_gen = 3*nside
-fwhm = 21.0 #5.0 #7.1 #arcmin
-noiseT = 40.0 #61.4
-noiseP = 894.6 #589.0#40.0*np.sqrt(2.) #86.8  
+fwhm = 30.0 #5.0 #7.1 #arcmin
+noiseT = 2.0 #61.4
+noiseP = 2.0*np.sqrt(2.0) #589.0#40.0*np.sqrt(2.) #86.8  
 
-nsims=1
+nsims=100
 
 lmin = 2
-lmax = 1024#1500
+lmax = 512#1500
 
 Lmin = 0
-Lmax = 500
+Lmax = 100
 
 #files
 beamfile = rootindir+'beam_'+namerun+'.fits'
@@ -86,10 +86,12 @@ else:
 params = """
 feedback = 4
 
-compute_alpha_lm = F
-compute_alpha_cl = F
-compute_alpha_bias = F
+compute_alpha_lm = T
+compute_alpha_cl = T
+compute_alpha_bias = T
 subtract_bias = F
+
+number_of_iterations = 3
 
 ellmin = {lmin}
 ellmax = {lmax}
@@ -105,7 +107,7 @@ noise_E = {noiseP}
 map_file = {mapfile}
 
 n_sims = {nsims}
-first_sim = 1
+first_sim = 0
 
 output_sigma = {sigmafile}
 output_alm = {almfile}

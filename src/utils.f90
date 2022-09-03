@@ -36,7 +36,7 @@ contains
     endif
   end subroutine make_noise
   
-  subroutine read_maps_and_compute_alms(filename,ssim,zerofill,endname,almE,almB)
+  subroutine read_maps_and_compute_alms(filename,ssim,zerofill,endname,iter,almE,almB)
     character(len=FILENAMELEN) :: filename,mapname,endname
     integer(i4b) :: lmax,nside,iter
     integer(i8b) :: npix
@@ -46,8 +46,6 @@ contains
     real(dp),allocatable,dimension(:,:) :: maps
     complex(dpc),allocatable,dimension(:,:,:) :: alms   
     complex(dpc),dimension(1:,0:,0:) :: almE,almB
-    
-    iter = 3
     
     nsims=size(almE,dim=1)
     lmax=size(almE,dim=2)-1    

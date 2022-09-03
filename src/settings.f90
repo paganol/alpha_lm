@@ -14,7 +14,7 @@ module settings
      character(len=FILENAMELEN) :: inbeamfile, endnamemap,endnamealm,endnamecl,innoisefile
      integer :: Lmin,Lmax,ellmin,ellmax,zerofill
      integer :: elloffset
-     integer :: nsims,ssim
+     integer :: nsims,ssim,niter
      character(len=FILENAMELEN) :: inmapfile, inclfile, outalmfile,outsigmafile,outclfile
      character(len=FILENAMELEN) :: outbiasfile, endnamebias
      logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias

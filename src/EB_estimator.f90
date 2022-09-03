@@ -71,7 +71,7 @@ program EB_estimator
         allocate(almE(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset)) 
         allocate(almB(Par%nsims,0:Par%ellmax+Par%elloffset,0:Par%ellmax+Par%elloffset))
         
-        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endnamemap,almE,almB)
+        call read_maps_and_compute_alms(Par%inmapfile,Par%ssim,Par%zerofill,Par%endnamemap,Par%niter,almE,almB)
         if (Par%compute_biasalpha) then
            allocate(clEEmap(Par%nsims,0:Par%ellmax+Par%elloffset))
            allocate(clBBmap(Par%nsims,0:Par%ellmax+Par%elloffset))
@@ -135,9 +135,9 @@ program EB_estimator
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
   !! Start E operator computation
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(*,*) 'Starting Computation'
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Starting Computation'
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t1, clock_rate, clock_max)
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for initialization = ', real ( t1 - t0 ) / real ( clock_rate )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for initialization = ', real ( t1 - t0 ) / real ( clock_rate )
   !! Compute sigma
   
   allocate(one_o_var(Par%Lmin:Par%Lmax))
@@ -157,7 +157,7 @@ program EB_estimator
            do j = jmin,min(jmax,Par%ellmax)
               if ((j .ge. iell) .and. (mod(iL+iell+j,2).eq.0)) then
                  if (j .eq. iell) then
-                    factor = 0.25 * Gl * (2.0*j + 1.0)
+                    factor = 0.5 * Gl * (2.0*j + 1.0)
                  else 
                     factor = Gl * (2.0*j + 1.0)
                  endif
@@ -176,7 +176,7 @@ program EB_estimator
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of sigma done'
   !compute timing
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t2, clock_rate, clock_max )
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for sigma computation = ', real ( t2 - t1 ) / real ( clock_rate )    
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for sigma computation = ', real ( t2 - t1 ) / real ( clock_rate )    
   
   if (myid .eq. 0) then
      allocate(red_one_o_var(Par%Lmin:Par%Lmax))
@@ -189,7 +189,7 @@ program EB_estimator
   call mpi_barrier(mpi_comm_world, mpierr)
   
   if (myid .eq. 0) then
-     if (Par%feedback .gt. 1) write(*,*) 'Write out sigma'
+     if (Par%feedback .gt. 1) write(0,*) 'Write out sigma'
      open(newunit=myunit,file=trim(Par%outsigmafile),status='replace',form='formatted')
      do iL=Par%Lmin,Par%Lmax
         write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/red_one_o_var(iL))
@@ -223,7 +223,7 @@ program EB_estimator
                  F_EB = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl(iell,1)*bl(jmin:jmax,1)
                  F_BE = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl(jmin:jmax,1)*bl(iell,1)
                  !compute bias if requested
-                 if (Par%compute_biasalpha) then
+                 if (Par%compute_biasalpha .and. (iM .eq. 0)) then
                     Gl = (2.0*iell + 1)/FOURPI
                     do j = jmin,min(jmax,Par%ellmax)
                        if ((j .ge. iell) .and. (mod(iL+iell+j,2) .eq. 0)) then
@@ -306,7 +306,7 @@ program EB_estimator
      call mpi_barrier(mpi_comm_world, mpierr)
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of alphalm done'
      if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t3, clock_rate, clock_max )
-     if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for alphalm computation = ', real ( t3 - t2 ) / real ( clock_rate )
+     if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write(0,*) 'Elapsed real time for alphalm computation = ', real ( t3 - t2 ) / real ( clock_rate )
 
      call mpi_barrier(mpi_comm_world, mpierr)
      
@@ -341,10 +341,10 @@ program EB_estimator
            do iL=Par%Lmin,Par%Lmax
               red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var(iL)**2
            enddo
-           if (Par%feedback .gt. 1) write(*,*) 'Write out bias'
+           if (Par%feedback .gt. 1) write(0,*) 'Write out bias'
            call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,red_biasalpha,Par%Lmin)
         endif
-        if (Par%feedback .gt. 1) write(*,*) 'Write out alphalm'
+        if (Par%feedback .gt. 1) write(0,*) 'Write out alphalm'
         call write_out_alms(Par%outalmfile,Par%ssim,Par%zerofill,Par%endnamealm,red_almalpha)
         if (Par%compute_alphacl) then
            if (Par%compute_biasalpha .and. Par%subtract_bias) then
@@ -363,10 +363,9 @@ program EB_estimator
   call mpi_barrier(mpi_comm_world, mpierr)
   
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock ( t4, clock_rate, clock_max )
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for total computation = ', real ( t4 - t1 ) / real ( clock_rate )
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (*,*) 'Elapsed real time for computation and initialization = ', real ( t4 - t0 ) / real ( clock_rate )
-  write (*,*) t0, t1,t2,t3,t4
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(*,*) 'End Program'  
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for total computation = ', real ( t4 - t1 ) / real ( clock_rate )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for computation and initialization = ', real ( t4 - t0 ) / real ( clock_rate )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'End Program'  
   call mpi_finalize(mpierr)
   
 end program EB_estimator

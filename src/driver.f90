@@ -49,6 +49,7 @@ contains
     if (P%compute_alphalm) then
        P%inmapfile=parse_string(handle,'map_file','inputs/map.fits')
        P%outalmfile=parse_string(handle,'output_alm','outputs/almhat.fits') 
+       P%niter=parse_int(handle,'number_of_iterations',3)
        P%nsims=parse_int(handle,'n_sims',1)
        P%ssim=parse_int(handle,'first_sim',1)
        if (P%nsims .gt. 1) then
