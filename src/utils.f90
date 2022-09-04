@@ -45,7 +45,7 @@ contains
     integer(i4b) :: ct,zerofill,nsims,ssim,isim
     real(dp),allocatable,dimension(:,:) :: maps
     complex(dpc),allocatable,dimension(:,:,:) :: alms   
-    complex(dpc),dimension(1:,0:,0:) :: almE,almB
+    complex(spc),dimension(1:,0:,0:) :: almE,almB
     
     nsims=size(almE,dim=1)
     lmax=size(almE,dim=2)-1    
@@ -87,7 +87,7 @@ contains
     integer(i8b) :: npix
     real(dp),allocatable,dimension(:,:) :: maps
     complex(dpc),allocatable,dimension(:,:,:) :: alms
-    complex(dpc),dimension(:,0:,0:) :: almE,almB
+    complex(spc),dimension(:,0:,0:) :: almE,almB
 
     lmax=size(almE,dim=2)-1
 
@@ -256,9 +256,9 @@ contains
   end subroutine compute_and_write_cl
 
   subroutine compute_cls_from_alms(almE,almB,clEE,clBB)
-    complex(dpc), dimension(1:,0:,0:) :: almE,almB
+    complex(spc), dimension(1:,0:,0:) :: almE,almB
     real(dp), dimension(1:,0:) :: clEE, clBB
-    real(dp),allocatable, dimension(:,:) :: cl
+    real(sp),allocatable, dimension(:,:) :: cl
     integer(i4b) :: nsims, lmax, isim
 
     nsims=Size(almE,dim=1)
