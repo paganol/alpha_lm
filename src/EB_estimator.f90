@@ -315,7 +315,7 @@ program EB_estimator
            endif
            Gl = (2*iell + 1)/FOURPI
            do j = jmin,min(jmax,Par%ellmax)
-              if ((j .ge. iell) .and. (mod(iL+iell+j,2).eq.0)) then
+              if ((j .ge. iell) .and. (jmod(iL+iell+j,2).eq.0)) then
                  if (j .eq. iell) then
                     factor = 0.5 * Gl * (2.0*j + 1.0)
                  else 
@@ -505,7 +505,7 @@ program EB_estimator
 
                     !loop ell'
                     do j = max(jminall,jmin,Par%ellmin),min(jmaxall,Par%ellmax)
-                       if ((j .ge. iell) .and. (mod(iL+iell+j,2) .eq. 0)) then
+                       if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0)) then
                           if (j .eq. iell) then
                              factor = 0.5
                           else
