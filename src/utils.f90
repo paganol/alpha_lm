@@ -180,7 +180,7 @@ contains
   end subroutine write_out_cls
   
   subroutine write_out_alms(filename,ssim,zerofill,endname,alms)
-    complex(dpc), dimension(1:,0:,0:) :: alms
+    complex(spc), dimension(1:,0:,0:) :: alms
     character(len=FILENAMELEN) :: filename,almname,endname
     integer(i4b) :: lmax
     character(len=16) :: simstr
@@ -210,25 +210,30 @@ contains
     
   end subroutine write_out_alms
 
-  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms,lmin,bias)
-    complex(dpc), dimension(1:,0:,0:) :: alms
-    real(dp), dimension(:,:),optional :: bias
-    real(dp),allocatable, dimension(:,:) :: cl
+  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms1,lmin,bias,alms2)
+    complex(spc), dimension(1:,0:,0:) :: alms1
+    complex(spc), optional, dimension(1:,0:,0:) :: alms2
+    real(dp), optional, dimension(:,:) :: bias
+    real(sp),allocatable, dimension(:,:) :: cl
     character(len=FILENAMELEN) :: filename,clname,endname
     integer(i4b) :: lmax,lmin
     character(len=16) :: simstr
     character(len=1) :: strzerofill
     integer(i4b) :: ct,zerofill,nsims,ssim,isim,il,myunit
 
-    nsims=Size(alms,DIM=1)
-    lmax=Size(alms,DIM=2)-1
+    nsims=Size(alms1,DIM=1)
+    lmax=Size(alms1,DIM=2)-1
 
     allocate(cl(0:lmax,1:1))
 
     if (nsims .eq. 1) then
        clname=filename
-       call alm2cl(lmax,lmax,alms(1:1,:,:),cl)
-       if (present(bias)) cl(:,1) = cl(:,1) - bias(1,:) 
+       if (present(alms2)) then
+          call alm2cl(lmax,lmax,alms1(1:1,:,:),alms2(1:1,:,:),cl)
+       else
+          call alm2cl(lmax,lmax,alms1(1:1,:,:),cl)
+       endif
+       if (present(bias)) cl(lmin:lmax,1) = cl(lmin:lmax,1) - bias(1,:) 
        open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
        do il=lmin,lmax
           write(myunit,'(I4,*(E15.7))') il,cl(il,1)
@@ -240,8 +245,12 @@ contains
        do isim=ssim,ssim+nsims-1
           write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
           clname=trim(filename)//trim(simstr)//trim(endname)
-          call alm2cl(lmax,lmax,alms(ct:ct,:,:),cl)
-          if (present(bias)) cl(:,1) = cl(:,1) - bias(ct,:)
+          if (present(alms2)) then
+             call alm2cl(lmax,lmax,alms1(ct:ct,:,:),alms2(1:1,:,:),cl)
+          else
+             call alm2cl(lmax,lmax,alms1(ct:ct,:,:),cl)
+          endif
+          if (present(bias)) cl(lmin:lmax,1) = cl(lmin:lmax,1) - bias(ct,:)
           open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
           do il=lmin,lmax
              write(myunit,'(I4,*(E15.7))') il,cl(il,1)
@@ -255,24 +264,34 @@ contains
 
   end subroutine compute_and_write_cl
 
-  subroutine compute_cls_from_alms(almE,almB,clEE,clBB)
-    complex(spc), dimension(1:,0:,0:) :: almE,almB
+  subroutine compute_cls_from_alms(almE1,almB1,clEE,clBB,almE2,almB2)
+    complex(spc), dimension(1:,0:,0:) :: almE1,almB1
+    complex(spc), optional, dimension(1:,0:,0:) :: almE2,almB2
     real(dp), dimension(1:,0:) :: clEE, clBB
     real(sp),allocatable, dimension(:,:) :: cl
     integer(i4b) :: nsims, lmax, isim
 
-    nsims=Size(almE,dim=1)
-    lmax=Size(almE,dim=2)-1    
+    nsims=Size(almE1,dim=1)
+    lmax=Size(almE1,dim=2)-1    
 
     allocate(cl(0:lmax,1:1))
 
-    do isim=1,nsims
-       call alm2cl(lmax,lmax,almE(isim:isim,:,:),cl)
-       clEE(isim,:) = cl(:,1)
-       call alm2cl(lmax,lmax,almB(isim:isim,:,:),cl)
-       clBB(isim,:) = cl(:,1)
-    enddo
- 
+    if (present(almE2) .and. present(almB2)) then
+       do isim=1,nsims
+          call alm2cl(lmax,lmax,almE1(isim:isim,:,:),almE2(isim:isim,:,:),cl)
+          clEE(isim,:) = cl(:,1)
+          call alm2cl(lmax,lmax,almB1(isim:isim,:,:),almB2(isim:isim,:,:),cl)
+          clBB(isim,:) = cl(:,1)
+       enddo
+    else
+       do isim=1,nsims
+          call alm2cl(lmax,lmax,almE1(isim:isim,:,:),cl)
+          clEE(isim,:) = cl(:,1)
+          call alm2cl(lmax,lmax,almB1(isim:isim,:,:),cl)
+          clBB(isim,:) = cl(:,1)
+       enddo
+    endif 
+
     deallocate(cl)
   end subroutine compute_cls_from_alms
 
