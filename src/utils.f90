@@ -35,6 +35,35 @@ contains
        nl(:,2) = (noiseB*DEG2RAD/60.0)**2
     endif
   end subroutine make_noise
+
+  subroutine read_mask_and_compute_fsky(filename,mask,fsky)
+    character(len=FILENAMELEN) :: filename
+    integer(i4b) :: nmaps
+    integer(i8b) :: npix
+    real(dp),intent(out),dimension(0:,1:) :: mask
+    real(dp),allocatable,dimension(:,:) :: maps
+    real(dp),intent(out) :: fsky
+
+    npix = getsize_fits(trim(filename),nmaps=nmaps)
+    allocate(maps(0:npix-1,1:nmaps))
+    call input_map(trim(filename),maps, npix, nmaps)
+    if (nmaps .eq. 1) then
+       mask(:,1) = maps(:,1)
+       mask(:,2) = maps(:,1)
+       mask(:,3) = maps(:,1)
+    endif
+    if (nmaps .eq. 2) then
+       mask(:,1) = maps(:,1)
+       mask(:,2) = maps(:,2)
+       mask(:,3) = maps(:,2)
+    endif
+    if (nmaps .eq. 3) mask = maps
+
+    fsky = sum(mask(:,2))/real(npix)
+
+    deallocate(maps)
+
+  end subroutine read_mask_and_compute_fsky
   
   subroutine read_maps_and_compute_alms(filename,ssim,zerofill,endname,iter,almE,almB)
     character(len=FILENAMELEN) :: filename,mapname,endname
@@ -81,11 +110,12 @@ contains
     
   end subroutine read_maps_and_compute_alms
 
-  subroutine read_map_and_compute_alms(filename,iter,almE,almB,sim)
+  subroutine read_map_and_compute_alms(filename,iter,almE,almB,sim,mask)
     character(len=FILENAMELEN) :: filename
     integer(i4b) :: lmax,nside,iter,sim
     integer(i8b) :: npix
     real(dp),allocatable,dimension(:,:) :: maps
+    real(dp),optional,dimension(0:,1:) :: mask
     complex(dpc),allocatable,dimension(:,:,:) :: alms
     complex(spc),dimension(:,0:,0:) :: almE,almB
 
@@ -96,7 +126,11 @@ contains
     npix = getsize_fits(trim(filename),nside=nside)
     allocate(maps(0:npix-1,1:3))
     call input_map(trim(filename),maps, npix, 3)
-    call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
+    if (present(mask)) then
+       call map2alm_iterative(nside, lmax, lmax, iter, maps, alms,mask=mask)
+    else
+       call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
+    endif
     almE(sim,:,:)=alms(2,:,:)
     almB(sim,:,:)=alms(3,:,:)
     deallocate(maps,alms)

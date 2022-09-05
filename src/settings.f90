@@ -13,6 +13,7 @@ module settings
      integer :: feedback
      character(len=FILENAMELEN) :: inbeamfile1,endnamemap1,endnamealm1,endnamecl,innoisefile1
      character(len=FILENAMELEN) :: inbeamfile2,endnamemap2,endnamealm2,innoisefile2
+     character(len=FILENAMELEN) :: inmaskfile1,inmaskfile2
      integer :: Lmin,Lmax,ellmin,ellmax,zerofill
      integer :: nsims,ssim,niter
      character(len=FILENAMELEN) :: inmapfile1, inclfile, outalmfile1,outsigmafile1,outsigmafile2,outclfile

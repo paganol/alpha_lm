@@ -18,7 +18,9 @@ program EB_estimator
   integer :: jminall,jmaxall
   integer :: isim,Lcount,iL,nele,elementcount
   integer :: iemm, iM, iemmp
-  logical :: emmppos
+  integer(i4b) :: nmaps
+  integer(i8b) :: npix
+  logical :: emmppos,apply_mask1=.false.,apply_mask2=.false.
   real(dp), allocatable, dimension(:) :: one_o_var1,red_one_o_var1,one_o_var2,red_one_o_var2,wig2,wigall,csi
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
@@ -27,8 +29,8 @@ program EB_estimator
   complex(spc), allocatable, dimension(:,:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
   complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
-  real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2
-  real(dp) :: factor,Gl,norm  
+  real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2,mask1,mask2
+  real(dp) :: factor,Gl,norm,fsky1,fsky2  
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct,zerofill
   character(len=FILENAMELEN) :: mapname
   character(len=16) :: simstr
@@ -148,16 +150,45 @@ program EB_estimator
         allocate(almB2(Par%nsims,0:Par%ellmax,0:Par%ellmax))
      endif
 
+     !mask
+     if (myid .eq. 0) then
+        if (Par%inmaskfile1 .ne. '') then
+           apply_mask1 = .true.
+           npix = getsize_fits(trim(Par%inmaskfile1))
+           allocate(mask1(0:npix-1,1:3)) 
+           call read_mask_and_compute_fsky(Par%inmaskfile1,mask1,fsky1)
+        endif
+        if (Par%do_cross) then
+           apply_mask2 = .true.
+           npix = getsize_fits(trim(Par%inmaskfile2))
+           allocate(mask2(0:npix-1,1:3))     
+           call read_mask_and_compute_fsky(Par%inmaskfile2,mask2,fsky2)
+        endif
+     endif
+
+     call mpi_bcast(apply_mask1,1,mpi_logical,0,mpi_comm_world,mpierr)
+     if (apply_mask1) call mpi_bcast(fsky1,1,mpi_real8,0,mpi_comm_world, mpierr)
+     if (Par%do_cross) call mpi_bcast(apply_mask2,1,mpi_logical,0,mpi_comm_world,mpierr)
+     if (Par%do_cross .and. apply_mask2) call mpi_bcast(fsky2,1,mpi_real8,0,mpi_comm_world, mpierr)
+
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
-           call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,1)
+           if (apply_mask1) then
+              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,1,mask=mask1)
+           else
+              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,1)
+           endif
         endif
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(almE1,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world, mpierr)
         call mpi_bcast(almB1,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world, mpierr)       
         if (Par%do_cross) then
            if (myid .eq. 0) then
-              call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,1)
+              if (apply_mask2) then
+                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,1,mask=mask2)
+              else
+                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,1)
+              endif
            endif
            call mpi_barrier(mpi_comm_world, mpierr)
            call mpi_bcast(almE2,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world,mpierr)
@@ -173,7 +204,11 @@ program EB_estimator
              if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
              write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
              mapname=trim(Par%inmapfile1)//trim(simstr)//trim(Par%endnamemap1)
-             call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,ct)
+             if (apply_mask1) then
+                call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,ct,mask=mask1)
+             else
+                call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,ct)
+             endif
           endif
           ct=ct+1
        enddo
@@ -189,7 +224,11 @@ program EB_estimator
                 if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
                 write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                 mapname=trim(Par%inmapfile2)//trim(simstr)//trim(Par%endnamemap2)
-                call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,ct)
+                if (apply_mask2) then
+                   call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,ct,mask=mask2)
+                else
+                   call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,ct)
+                endif
              endif
              ct=ct+1
           enddo
@@ -204,10 +243,18 @@ program EB_estimator
      if (Par%do_cross) then
         allocate(clEEmap12(Par%nsims,0:Par%ellmax))
         allocate(clBBmap12(Par%nsims,0:Par%ellmax))
-        if  (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,clEEmap12,clBBmap12,almE2,almB2)
+        if (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,clEEmap12,clBBmap12,almE2,almB2)
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(clEEmap12,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
         call mpi_bcast(clBBmap12,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
+        if (apply_mask1) then
+           clEEmap12 = clEEmap12 / sqrt(fsky1)
+           clBBmap12 = clBBmap12 / sqrt(fsky1)
+        endif
+        if (apply_mask2) then
+           clEEmap12 = clEEmap12 / sqrt(fsky2)
+           clBBmap12 = clBBmap12 / sqrt(fsky2)
+        endif
      else
         allocate(clEEmap1(Par%nsims,0:Par%ellmax))
         allocate(clBBmap1(Par%nsims,0:Par%ellmax))
@@ -215,6 +262,10 @@ program EB_estimator
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(clEEmap1,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
         call mpi_bcast(clBBmap1,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
+        if (apply_mask1) then
+           clEEmap1 = clEEmap1 / fsky1
+           clBBmap1 = clBBmap1 / fsky1
+        endif
      endif
   endif
 
