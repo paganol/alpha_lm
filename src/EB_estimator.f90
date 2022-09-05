@@ -158,7 +158,7 @@ program EB_estimator
            allocate(mask1(0:npix-1,1:3)) 
            call read_mask_and_compute_fsky(Par%inmaskfile1,mask1,fsky1)
         endif
-        if (Par%do_cross) then
+        if (Par%do_cross .and. (Par%inmaskfile2 .ne. '')) then
            apply_mask2 = .true.
            npix = getsize_fits(trim(Par%inmaskfile2))
            allocate(mask2(0:npix-1,1:3))     

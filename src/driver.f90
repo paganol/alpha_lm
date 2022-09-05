@@ -70,7 +70,7 @@ contains
        if (P%do_cross) then
           P%inmapfile2=parse_string(handle,'input_map2','inputs/map2.fits')
           P%outalmfile2=parse_string(handle,'output_alm2','outputs/almhat2.fits')
-          P%inmaskfile1=parse_string(handle,'input_mask2',P%inmaskfile1)
+          P%inmaskfile2=parse_string(handle,'input_mask2',P%inmaskfile1)
        endif
        P%niter=parse_int(handle,'number_of_iterations',3)
        P%nsims=parse_int(handle,'n_sims',1)
