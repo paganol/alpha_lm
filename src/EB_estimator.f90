@@ -135,16 +135,19 @@ program EB_estimator
      call mpi_bcast(Par%endnamemap1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%zerofill,1,mpi_integer,0,mpi_comm_world,mpierr)
      if (Par%do_cross) then
-        call mpi_bcast(Par%inmapfile1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-        call mpi_bcast(Par%endnamemap1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%inmapfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%endnamemap2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      endif
+
      if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read maps'
+     nele = Par%ellmax+1
      allocate(almE1(Par%nsims,0:Par%ellmax,0:Par%ellmax))
      allocate(almB1(Par%nsims,0:Par%ellmax,0:Par%ellmax))     
      if (Par%do_cross) then
         allocate(almE2(Par%nsims,0:Par%ellmax,0:Par%ellmax))
         allocate(almB2(Par%nsims,0:Par%ellmax,0:Par%ellmax))
      endif
+
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
            call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,1)
@@ -369,7 +372,7 @@ program EB_estimator
 
   call mpi_barrier(mpi_comm_world, mpierr)
 
-  if (Par%compute_biasalpha) then
+  if (Par%compute_biasalpha .and. (myid .eq. 0)) then
      if (Par%do_cross) then
         do iL=Par%Lmin,Par%Lmax
            red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var1(iL) / red_one_o_var2(iL)

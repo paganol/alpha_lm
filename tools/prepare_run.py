@@ -23,10 +23,12 @@ nsims=100
 lmin = 2
 lmax = 512#1500
 
-lmax_gen = lmax
-
 Lmin = 0
 Lmax = 500
+
+lmax_gen = lmax
+
+lmax_beam = lmax+Lmax
 
 #files
 beamfile = rootindir+'beam_'+namerun+'.fits'
@@ -48,10 +50,10 @@ else:
 sigmafile = rootoutdir+'sigma_'+namerun+'.txt'
 
 #beam
-bl = hp.gauss_beam(np.deg2rad(fwhm/60.),lmax_gen,pol=True)
-wpix = hp.pixwin(nside,pol=True,lmax=lmax_gen)
+bl = hp.gauss_beam(np.deg2rad(fwhm/60.),lmax_beam,pol=True)
+wpix = hp.pixwin(nside,pol=True,lmax=lmax_beam)
 
-beam = np.empty((lmax_gen+1,3))
+beam = np.empty((lmax_beam+1,3))
 
 beam[:,0] = bl[:,0]*wpix[0]
 beam[:,1] = bl[:,1]*wpix[1]
@@ -88,6 +90,8 @@ else:
 params = """
 feedback = 4
 
+do_cross = F
+
 compute_alpha_lm = T
 compute_alpha_cl = T
 compute_alpha_bias = T
@@ -102,17 +106,17 @@ Lmin = {Lmin}
 Lmax = {Lmax}
 
 cl_file = {fiducialfile}
-beam_file = {beamfile}
-noise_file = '' 
-noise_E = {noiseP}
+beam_file1 = {beamfile}
+noise_file1 = '' 
+noise_E1 = {noiseP}
 
-map_file = {mapfile}
+input_map1 = {mapfile}
 
 n_sims = {nsims}
 first_sim = 0
 
-output_sigma = {sigmafile}
-output_alm = {almfile}
+output_sigma1 = {sigmafile}
+output_alm1 = {almfile}
 output_cl = {clfile}
 output_bias = {biasfile}
 """
