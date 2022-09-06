@@ -49,7 +49,7 @@ if nsims < 2:
         alphafile = rootindir+'alphamap_'+namerun+'.fits'
 else:
     mapfile = rootindir+'map_'+namerun+'_'
-    almfile = '!'*rootoutdir+'alphalm_'+namerun+'_'
+    almfile = '!'+rootoutdir+'alphalm_'+namerun+'_'
     clfile = rootoutdir+'alphacl_'+namerun+'_'
     biasfile = rootoutdir+'alphabias_'+namerun+'_'
     if(save_alpha):

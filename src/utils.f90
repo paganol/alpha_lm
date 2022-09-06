@@ -74,7 +74,7 @@ contains
     integer(i4b) :: ct,zerofill,nsims,ssim,isim
     real(dp),allocatable,dimension(:,:) :: maps
     complex(dpc),allocatable,dimension(:,:,:) :: alms   
-    complex(spc),dimension(1:,0:,0:) :: almE,almB
+    complex(dpc),dimension(1:,0:,0:) :: almE,almB
     
     nsims=size(almE,dim=1)
     lmax=size(almE,dim=2)-1    
@@ -117,7 +117,7 @@ contains
     real(dp),allocatable,dimension(:,:) :: maps
     real(dp),optional,dimension(0:,1:) :: mask
     complex(dpc),allocatable,dimension(:,:,:) :: alms
-    complex(spc),dimension(:,0:,0:) :: almE,almB
+    complex(dpc),dimension(:,0:,0:) :: almE,almB
 
     lmax=size(almE,dim=2)-1
 
@@ -214,7 +214,7 @@ contains
   end subroutine write_out_cls
   
   subroutine write_out_alms(filename,ssim,zerofill,endname,alms)
-    complex(spc), dimension(1:,0:,0:) :: alms
+    complex(dpc), dimension(1:,0:,0:) :: alms
     character(len=FILENAMELEN) :: filename,almname,endname
     integer(i4b) :: lmax
     character(len=16) :: simstr
@@ -245,10 +245,10 @@ contains
   end subroutine write_out_alms
 
   subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms1,lmin,bias,alms2)
-    complex(spc), dimension(1:,0:,0:) :: alms1
-    complex(spc), optional, dimension(1:,0:,0:) :: alms2
+    complex(dpc), dimension(1:,0:,0:) :: alms1
+    complex(dpc), optional, dimension(1:,0:,0:) :: alms2
     real(dp), optional, dimension(:,:) :: bias
-    real(sp),allocatable, dimension(:,:) :: cl
+    real(dp),allocatable, dimension(:,:) :: cl
     character(len=FILENAMELEN) :: filename,clname,endname
     integer(i4b) :: lmax,lmin
     character(len=16) :: simstr
@@ -299,10 +299,10 @@ contains
   end subroutine compute_and_write_cl
 
   subroutine compute_cls_from_alms(almE1,almB1,clEE,clBB,almE2,almB2)
-    complex(spc), dimension(1:,0:,0:) :: almE1,almB1
-    complex(spc), optional, dimension(1:,0:,0:) :: almE2,almB2
+    complex(dpc), dimension(1:,0:,0:) :: almE1,almB1
+    complex(dpc), optional, dimension(1:,0:,0:) :: almE2,almB2
     real(dp), dimension(1:,0:) :: clEE, clBB
-    real(sp),allocatable, dimension(:,:) :: cl
+    real(dp),allocatable, dimension(:,:) :: cl
     integer(i4b) :: nsims, lmax, isim
 
     nsims=Size(almE1,dim=1)
