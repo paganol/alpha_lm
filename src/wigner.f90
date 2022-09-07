@@ -347,6 +347,7 @@ subroutine Wigner3j(w3j, jmin, jmax, j2, j3, m1, m2, m3, exitstatus)
 
         wnmid = wl(jindex(jmid))
 
+!LPmod
         if (jindex(jmid-1) .gt. 0) then 
         if (wl(jindex(jmid-1)) .ne. 0.0_dpres .and. &
                 abs(wnmid / wl(jindex(jmid-1))) < 1.d-6) then

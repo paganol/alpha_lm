@@ -72,7 +72,6 @@ contains
           P%outalmfile2=parse_string(handle,'output_alm2','outputs/almhat2.fits')
           P%inmaskfile2=parse_string(handle,'input_mask2',P%inmaskfile1)
        endif
-       P%niter=parse_int(handle,'number_of_iterations',3)
        P%nsims=parse_int(handle,'n_sims',1)
        P%ssim=parse_int(handle,'first_sim',1)
        if (P%nsims .gt. 1) then
@@ -90,8 +89,11 @@ contains
        endif
     endif
 
-    if (P%compute_biasalpha .or. P%compute_alphalm) P%zerofill=parse_int(handle,'zero_fill',4)
-      
+    if (P%compute_biasalpha .or. P%compute_alphalm) then
+       P%zerofill=parse_int(handle,'zero_fill',4)
+       P%niter=parse_int(handle,'number_of_iterations',3)
+    endif
+     
     call parse_finish (handle)
     
     if (P%feedback .gt. 1 ) write(*,*) 'Read input file: DONE'
