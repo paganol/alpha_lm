@@ -29,7 +29,7 @@ contains
 
     P%ellmin=parse_int(handle,'ellmin',2)
     P%ellmax=parse_int(handle,'ellmax',100)
-    P%Lmin=parse_int(handle,'Lmin',1)
+    P%Lmin=parse_int(handle,'Lmin',0)
     P%Lmax=parse_int(handle,'Lmax',100)
 
     P%do_cross=parse_lgt(handle,'do_cross',.false.)

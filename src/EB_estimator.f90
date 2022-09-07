@@ -27,8 +27,8 @@ program EB_estimator
   real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha,red_biasalpha
   complex(spc), allocatable, dimension(:,:,:) :: almE1,almB1,almE2,almB2
   complex(spc), allocatable, dimension(:,:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
-  complex(spc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
-  complex(spc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
+  complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
+  complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
   real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2,mask1,mask2
   real(dp) :: factor,Gl,norm,fsky1,fsky2  
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct
@@ -440,6 +440,9 @@ program EB_estimator
      call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,red_biasalpha,Par%Lmin)
   endif
 
+  write(0,*) almE1
+  write(0,*) almB1
+
   !! Compute alphalm
   if (Par%compute_alphalm) then
 
@@ -512,9 +515,9 @@ program EB_estimator
                        if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0) .and. (iL .ge. abs(j-iell)) .and. (iL .le. j+iell)) then
                        !if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0)) then
                           if (j .eq. iell) then
-                             factor = 0.5
+                             factor = 0.5 * csi(j)
                           else
-                             factor = 1.0
+                             factor = csi(j)
                           endif
 
                           if (emmppos) then
@@ -525,8 +528,8 @@ program EB_estimator
                              curralmB1star = almB1(:,j,-iemmp)
                           endif
                           almalpha1(:,iL,iM) = almalpha1(:,iL,iM) + factor * &
-                             (F_EB1(j) * csi(j) * curralmE1 * curralmB1star / clBBobs1(j) / clEEobs1(iell) + &
-                              F_BE1(j) * csi(j) * curralmB1 * curralmE1star / clBBobs1(iell) / clEEobs1(j))
+                             (F_EB1(j) * curralmE1 * curralmB1star / clBBobs1(j) / clEEobs1(iell) + &
+                              F_BE1(j) * curralmB1 * curralmE1star / clBBobs1(iell) / clEEobs1(j))
 
                           if (Par%do_cross) then
                              if (emmppos) then
@@ -537,8 +540,8 @@ program EB_estimator
                                 curralmB2star = almB2(:,j,-iemmp)
                              endif                    
                              almalpha2(:,iL,iM) = almalpha2(:,iL,iM) + factor * &
-                                (F_EB2(j) * csi(j) * curralmE2 * curralmB2star / clBBobs2(j) / clEEobs2(iell) + &
-                                 F_BE2(j) * csi(j) * curralmB2 * curralmE2star / clBBobs2(iell) / clEEobs2(j)) 
+                                (F_EB2(j) * curralmE2 * curralmB2star / clBBobs2(j) / clEEobs2(iell) + &
+                                 F_BE2(j) * curralmB2 * curralmE2star / clBBobs2(iell) / clEEobs2(j)) 
                           endif
                        endif
                     enddo
@@ -621,9 +624,9 @@ program EB_estimator
   
   call mpi_barrier(mpi_comm_world, mpierr)
   
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock( t4, clock_rate, clock_max )
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for total computation = ', real ( t4 - t1 ) / real ( clock_rate )
-  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for computation and initialization = ', real ( t4 - t0 ) / real ( clock_rate )
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock(t4, clock_rate, clock_max)
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write(0,*) 'Elapsed real time for total computation = ', real(t4 - t1) / real(clock_rate)
+  if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write(0,*) 'Elapsed real time for computation and initialization = ', real(t4 - t0)/real(clock_rate)
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'End Program'  
   call mpi_finalize(mpierr)
   
