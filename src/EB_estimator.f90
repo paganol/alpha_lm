@@ -440,9 +440,6 @@ program EB_estimator
      call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,red_biasalpha,Par%Lmin)
   endif
 
-  write(0,*) almE1
-  write(0,*) almB1
-
   !! Compute alphalm
   if (Par%compute_alphalm) then
 

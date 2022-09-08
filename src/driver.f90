@@ -63,22 +63,31 @@ contains
        P%endnamebias=parse_string(handle,'suffix_bias','.txt')
     endif
 
-    if (P%compute_alphalm) then
+    if (P%compute_alphalm .or. P%compute_biasalpha) then
        P%inmapfile1=parse_string(handle,'input_map1','inputs/map1.fits')
-       P%outalmfile1=parse_string(handle,'output_alm1','outputs/almhat1.fits') 
        P%inmaskfile1=parse_string(handle,'input_mask1','')
        if (P%do_cross) then
           P%inmapfile2=parse_string(handle,'input_map2','inputs/map2.fits')
-          P%outalmfile2=parse_string(handle,'output_alm2','outputs/almhat2.fits')
           P%inmaskfile2=parse_string(handle,'input_mask2',P%inmaskfile1)
        endif
        P%nsims=parse_int(handle,'n_sims',1)
        P%ssim=parse_int(handle,'first_sim',1)
        if (P%nsims .gt. 1) then
           P%endnamemap1=parse_string(handle,'suffix_map1','.fits')
-          P%endnamealm1=parse_string(handle,'suffix_alm1','.fits')
           if (P%do_cross) then
              P%endnamemap2=parse_string(handle,'suffix_map2','.fits')
+          endif
+       endif
+    endif
+
+    if (P%compute_alphalm) then
+       P%outalmfile1=parse_string(handle,'output_alm1','outputs/almhat1.fits') 
+       if (P%do_cross) then
+          P%outalmfile2=parse_string(handle,'output_alm2','outputs/almhat2.fits')
+       endif
+       if (P%nsims .gt. 1) then
+          P%endnamealm1=parse_string(handle,'suffix_alm1','.fits')
+          if (P%do_cross) then
              P%endnamealm2=parse_string(handle,'suffix_alm2','.fits')
           endif
        endif
