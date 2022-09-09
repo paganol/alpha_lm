@@ -34,7 +34,37 @@ contains
        nl(:,1) = (noiseE*DEG2RAD/60.0)**2
        nl(:,2) = (noiseB*DEG2RAD/60.0)**2
     endif
+
   end subroutine make_noise
+
+  subroutine read_mask_and_compute_fsky(filename,mask,fsky)
+    character(len=FILENAMELEN) :: filename
+    integer(i4b) :: nmaps
+    integer(i8b) :: npix
+    real(dp),intent(out),dimension(0:,1:) :: mask
+    real(dp),allocatable,dimension(:,:) :: maps
+    real(dp),intent(out) :: fsky
+
+    npix = getsize_fits(trim(filename),nmaps=nmaps)
+    allocate(maps(0:npix-1,1:nmaps))
+    call input_map(trim(filename),maps, npix, nmaps)
+    if (nmaps .eq. 1) then
+       mask(:,1) = maps(:,1)
+       mask(:,2) = maps(:,1)
+       mask(:,3) = maps(:,1)
+    endif
+    if (nmaps .eq. 2) then
+       mask(:,1) = maps(:,1)
+       mask(:,2) = maps(:,2)
+       mask(:,3) = maps(:,2)
+    endif
+    if (nmaps .eq. 3) mask = maps
+
+    fsky = sum(mask(:,2))/real(npix)
+
+    deallocate(maps)
+
+  end subroutine read_mask_and_compute_fsky
   
   subroutine read_maps_and_compute_alms(filename,ssim,zerofill,endname,iter,almE,almB)
     character(len=FILENAMELEN) :: filename,mapname,endname
@@ -81,11 +111,12 @@ contains
     
   end subroutine read_maps_and_compute_alms
 
-  subroutine read_map_and_compute_alms(filename,iter,almE,almB,sim)
+  subroutine read_map_and_compute_alms(filename,iter,almE,almB,sim,mask)
     character(len=FILENAMELEN) :: filename
     integer(i4b) :: lmax,nside,iter,sim
     integer(i8b) :: npix
     real(dp),allocatable,dimension(:,:) :: maps
+    real(dp),optional,dimension(0:,1:) :: mask
     complex(dpc),allocatable,dimension(:,:,:) :: alms
     complex(spc),dimension(:,0:,0:) :: almE,almB
 
@@ -96,7 +127,11 @@ contains
     npix = getsize_fits(trim(filename),nside=nside)
     allocate(maps(0:npix-1,1:3))
     call input_map(trim(filename),maps, npix, 3)
-    call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
+    if (present(mask)) then
+       call map2alm_iterative(nside, lmax, lmax, iter, maps, alms,mask=mask)
+    else
+       call map2alm_iterative(nside, lmax, lmax, iter, maps, alms)
+    endif
     almE(sim,:,:)=alms(2,:,:)
     almB(sim,:,:)=alms(3,:,:)
     deallocate(maps,alms)
@@ -180,7 +215,7 @@ contains
   end subroutine write_out_cls
   
   subroutine write_out_alms(filename,ssim,zerofill,endname,alms)
-    complex(dpc), dimension(1:,0:,0:) :: alms
+    complex(spc), dimension(1:,0:,0:) :: alms
     character(len=FILENAMELEN) :: filename,almname,endname
     integer(i4b) :: lmax
     character(len=16) :: simstr
@@ -210,25 +245,30 @@ contains
     
   end subroutine write_out_alms
 
-  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms,lmin,bias)
-    complex(dpc), dimension(1:,0:,0:) :: alms
-    real(dp), dimension(:,:),optional :: bias
-    real(dp),allocatable, dimension(:,:) :: cl
+  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms1,lmin,bias,alms2)
+    complex(spc), dimension(1:,0:,0:) :: alms1
+    complex(spc), optional, dimension(1:,0:,0:) :: alms2
+    real(dp), optional, dimension(:,:) :: bias
+    real(sp),allocatable, dimension(:,:) :: cl
     character(len=FILENAMELEN) :: filename,clname,endname
     integer(i4b) :: lmax,lmin
     character(len=16) :: simstr
     character(len=1) :: strzerofill
     integer(i4b) :: ct,zerofill,nsims,ssim,isim,il,myunit
 
-    nsims=Size(alms,DIM=1)
-    lmax=Size(alms,DIM=2)-1
+    nsims=Size(alms1,DIM=1)
+    lmax=Size(alms1,DIM=2)-1
 
     allocate(cl(0:lmax,1:1))
 
     if (nsims .eq. 1) then
        clname=filename
-       call alm2cl(lmax,lmax,alms(1:1,:,:),cl)
-       if (present(bias)) cl(:,1) = cl(:,1) - bias(1,:) 
+       if (present(alms2)) then
+          call alm2cl(lmax,lmax,alms1(1:1,:,:),alms2(1:1,:,:),cl)
+       else
+          call alm2cl(lmax,lmax,alms1(1:1,:,:),cl)
+       endif
+       if (present(bias)) cl(lmin:lmax,1) = cl(lmin:lmax,1) - bias(1,:) 
        open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
        do il=lmin,lmax
           write(myunit,'(I4,*(E15.7))') il,cl(il,1)
@@ -240,8 +280,12 @@ contains
        do isim=ssim,ssim+nsims-1
           write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
           clname=trim(filename)//trim(simstr)//trim(endname)
-          call alm2cl(lmax,lmax,alms(ct:ct,:,:),cl)
-          if (present(bias)) cl(:,1) = cl(:,1) - bias(ct,:)
+          if (present(alms2)) then
+             call alm2cl(lmax,lmax,alms1(ct:ct,:,:),alms2(1:1,:,:),cl)
+          else
+             call alm2cl(lmax,lmax,alms1(ct:ct,:,:),cl)
+          endif
+          if (present(bias)) cl(lmin:lmax,1) = cl(lmin:lmax,1) - bias(ct,:)
           open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
           do il=lmin,lmax
              write(myunit,'(I4,*(E15.7))') il,cl(il,1)
@@ -255,25 +299,52 @@ contains
 
   end subroutine compute_and_write_cl
 
-  subroutine compute_cls_from_alms(almE,almB,clEE,clBB)
-    complex(spc), dimension(1:,0:,0:) :: almE,almB
+  subroutine compute_cls_from_alms(almE1,almB1,clEE,clBB,almE2,almB2)
+    complex(spc), dimension(1:,0:,0:) :: almE1,almB1
+    complex(spc), optional, dimension(1:,0:,0:) :: almE2,almB2
     real(dp), dimension(1:,0:) :: clEE, clBB
     real(sp),allocatable, dimension(:,:) :: cl
     integer(i4b) :: nsims, lmax, isim
 
-    nsims=Size(almE,dim=1)
-    lmax=Size(almE,dim=2)-1    
+    nsims=Size(almE1,dim=1)
+    lmax=Size(almE1,dim=2)-1    
 
     allocate(cl(0:lmax,1:1))
 
-    do isim=1,nsims
-       call alm2cl(lmax,lmax,almE(isim:isim,:,:),cl)
-       clEE(isim,:) = cl(:,1)
-       call alm2cl(lmax,lmax,almB(isim:isim,:,:),cl)
-       clBB(isim,:) = cl(:,1)
-    enddo
- 
+    if (present(almE2) .and. present(almB2)) then
+       do isim=1,nsims
+          call alm2cl(lmax,lmax,almE1(isim:isim,:,:),almE2(isim:isim,:,:),cl)
+          clEE(isim,:) = cl(:,1)
+          call alm2cl(lmax,lmax,almB1(isim:isim,:,:),almB2(isim:isim,:,:),cl)
+          clBB(isim,:) = cl(:,1)
+       enddo
+    else
+       do isim=1,nsims
+          call alm2cl(lmax,lmax,almE1(isim:isim,:,:),cl)
+          clEE(isim,:) = cl(:,1)
+          call alm2cl(lmax,lmax,almB1(isim:isim,:,:),cl)
+          clBB(isim,:) = cl(:,1)
+       enddo
+    endif 
     deallocate(cl)
   end subroutine compute_cls_from_alms
+
+  function lm2index(lmax,l,m) result(ind)
+    integer, intent(in) :: lmax,l,m
+    integer :: ind
+
+    ind = floor(m*(2*lmax+1-m)/real(2))+l 
+  end function lm2index
+
+  function index2lm(lmax,ind) result(lm)
+    integer, intent(in) :: lmax,ind
+    integer, dimension(2) :: lm
+    real(dp) :: twolmaxp1
+   
+    twolmaxp1 = 2.0 * lmax +1.0
+    lm(2) = ceiling((twolmaxp1-sqrt(twolmaxp1*twolmaxp1-8*(ind-lmax)))/2)
+    lm(1) = ind - floor(lm(2)*(twolmaxp1-lm(2))/2)
+    
+  end function index2lm
 
 end module utils

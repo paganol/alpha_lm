@@ -36,7 +36,7 @@ ifneq ($(findstring r000u,$(HOST)), )
 F90C= mpiifort
 #https://www.spec.org/hpc2021/flags/Intel_compiler_flags.2021-10-20.html
 #https://www.intel.com/content/www/us/en/develop/documentation/cpp-compiler-developer-guide-and-reference/top/compiler-reference/compiler-options/code-generation-options/march.htm
-F90FLAGS= -Ofast -mkl -march=skylake -funroll-loops -qopenmp -no-prec-div #-check bounds -traceback #-g -check all -fpe0 -warn -traceback -debug extended -check bounds
+F90FLAGS= -Ofast -mkl -march=skylake -funroll-loops -qopenmp -no-prec-div #-check all -traceback -warn#-no-prec-div -check bounds -traceback #-g -check all -fpe0 -warn -traceback -debug extended -check bounds
 INCLUDES= -I. -I/usr/local/include -I$(HEALPIX_INCLUDE) -I/usr/include
 LIBS= -L. -L$(HEALPIX_LIB) -lhealpix -L$(CFITSIO_LIB) -lcfitsio -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm
 endif
@@ -50,13 +50,16 @@ INCLUDES = -I. -I/usr/local/include -I$(HEALPIX)/include -I/usr/local/Cellar/cfi
 LIBS = -L$(HEALPIX)/lib -lhealpix  -L/usr/local/Cellar/cfitsio/4.1.0/lib -lcfitsio
 endif
 
-OBJFILES = settings.o driver.o utils.o wigner.o EB_estimator.o 
+OBJFILES = d1mach.o settings.o driver.o utils.o wigner.o wigner1.o EB_estimator.o 
 
 all : EB_estimator
 
 
 %.o: %.f90
 	$(F90C) $(F90FLAGS) $(INCLUDES) -c $*.f90
+
+%.o: %.f
+	$(F90C) $(F90FLAGS) $(INCLUDES) -c $*.f
 
 EB_estimator : $(OBJFILES)
 	$(F90C) $(OBJFILES) -o ../EB_estimator $(LIBS)

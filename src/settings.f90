@@ -7,17 +7,20 @@ module settings
   type(planck_rng) :: rng_handle
 
   integer,parameter,public :: myTT=1,myEE=2,myBB=3,myTE=4,myTB=5,myEB=6
-
+  integer,parameter,public :: myT=1,myE=2,myB=3
   !parameters
   Type Params
      integer :: feedback
-     character(len=FILENAMELEN) :: inbeamfile, endnamemap,endnamealm,endnamecl,innoisefile
+     character(len=FILENAMELEN) :: inbeamfile1,endnamemap1,endnamealm1,endnamecl,innoisefile1
+     character(len=FILENAMELEN) :: inbeamfile2,endnamemap2,endnamealm2,innoisefile2
+     character(len=FILENAMELEN) :: inmaskfile1,inmaskfile2
      integer :: Lmin,Lmax,ellmin,ellmax,zerofill
      integer :: nsims,ssim,niter
-     character(len=FILENAMELEN) :: inmapfile, inclfile, outalmfile,outsigmafile,outclfile
+     character(len=FILENAMELEN) :: inmapfile1, inclfile, outalmfile1,outsigmafile1,outsigmafile2,outclfile
+     character(len=FILENAMELEN) :: inmapfile2, outalmfile2
      character(len=FILENAMELEN) :: outbiasfile, endnamebias
-     logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias
-     real(dp) :: noiseE,noiseB
+     logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias,do_cross
+     real(dp) :: noiseE1,noiseB1,noiseE2,noiseB2
   end Type Params
 
 contains
