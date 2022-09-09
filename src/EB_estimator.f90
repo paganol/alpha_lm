@@ -470,12 +470,13 @@ program EB_estimator
                  call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
                  usedjmax = min(jmax,Par%ellmax)
                  allocate(F_EB1(jmin:usedjmax),F_BE1(jmin:usedjmax))
-                 F_EB1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(jmin:usedjmax,myE)
-                 F_BE1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl1(jmin:usedjmax,myE)*bl1(iell,myE)
+                 ! F_XY divided here by clEEobs(l) or clBBobs(l). It saves some computation time 
+                 F_EB1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(jmin:usedjmax,myE) / clEEobs1(iell) 
+                 F_BE1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl1(jmin:usedjmax,myE)*bl1(iell,myE) / clBBobs1(iell)
                  if (Par%do_cross) then
                     allocate(F_EB2(jmin:usedjmax),F_BE2(jmin:usedjmax))
-                    F_EB2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(jmin:usedjmax,myE)
-                    F_BE2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl2(jmin:usedjmax,myE)*bl2(iell,myE)
+                    F_EB2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(jmin:usedjmax,myE) / clEEobs2(iell) 
+                    F_BE2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl2(jmin:usedjmax,myE)*bl2(iell,myE) / clBBobs2(iell)
                  endif
                  norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
                  !loop emm
@@ -528,9 +529,10 @@ program EB_estimator
                              curralmE1star = almE1(:,j,-iemmp)*(-1)**(-iemmp)
                              curralmB1star = almB1(:,j,-iemmp)*(-1)**(-iemmp)
                           endif
+                          ! F_XY already divided by clEEobs(l) or clBBobs(l)
                           almalpha1(:,iL,iM) = almalpha1(:,iL,iM) + factor * &
-                             (F_EB1(j) * curralmE1 * curralmB1star / clBBobs1(j) / clEEobs1(iell) + &
-                              F_BE1(j) * curralmB1 * curralmE1star / clBBobs1(iell) / clEEobs1(j))
+                             (F_EB1(j) * curralmE1 * curralmB1star / clBBobs1(j) + &
+                              F_BE1(j) * curralmB1 * curralmE1star / clEEobs1(j))
 
                           if (Par%do_cross) then
                              if (emmppos) then
@@ -539,10 +541,11 @@ program EB_estimator
                              else
                                 curralmE2star = almE2(:,j,-iemmp)*(-1)**(-iemmp)
                                 curralmB2star = almB2(:,j,-iemmp)*(-1)**(-iemmp)
-                             endif                    
+                             endif
+                             ! F_XY already divided by clEEobs(l) or clBBobs(l)
                              almalpha2(:,iL,iM) = almalpha2(:,iL,iM) + factor * &
-                                (F_EB2(j) * curralmE2 * curralmB2star / clBBobs2(j) / clEEobs2(iell) + &
-                                 F_BE2(j) * curralmB2 * curralmE2star / clBBobs2(iell) / clEEobs2(j)) 
+                                (F_EB2(j) * curralmE2 * curralmB2star / clBBobs2(j) + &
+                                 F_BE2(j) * curralmB2 * curralmE2star / clEEobs2(j)) 
                           endif
                        endif
                     enddo
