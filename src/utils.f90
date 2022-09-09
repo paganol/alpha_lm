@@ -34,6 +34,7 @@ contains
        nl(:,1) = (noiseE*DEG2RAD/60.0)**2
        nl(:,2) = (noiseB*DEG2RAD/60.0)**2
     endif
+
   end subroutine make_noise
 
   subroutine read_mask_and_compute_fsky(filename,mask,fsky)
@@ -327,5 +328,23 @@ contains
     endif 
     deallocate(cl)
   end subroutine compute_cls_from_alms
+
+  function lm2index(lmax,l,m) result(ind)
+    integer, intent(in) :: lmax,l,m
+    integer :: ind
+
+    ind = floor(m*(2*lmax+1-m)/real(2))+l 
+  end function lm2index
+
+  function index2lm(lmax,ind) result(lm)
+    integer, intent(in) :: lmax,ind
+    integer, dimension(2) :: lm
+    real(dp) :: twolmaxp1
+   
+    twolmaxp1 = 2.0 * lmax +1.0
+    lm(2) = ceiling((twolmaxp1-sqrt(twolmaxp1*twolmaxp1-8*(ind-lmax)))/2)
+    lm(1) = ind - floor(lm(2)*(twolmaxp1-lm(2))/2)
+    
+  end function index2lm
 
 end module utils

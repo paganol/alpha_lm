@@ -16,7 +16,7 @@ program EB_estimator
   !variables
   integer :: myid,nproc,mpierr
   integer :: j,jmin,jmax, iell
-  integer :: jminall,jmaxall
+  integer :: jminall,jmaxall,usedjmax
   integer :: isim,Lcount,iL,nele,elementcount
   integer :: iemm, iM, iemmp
   integer(i8b) :: npix
@@ -54,16 +54,16 @@ program EB_estimator
      if (Par%feedback .gt. 0) write(0,*) 'Reading parameters'
      if (Par%feedback .gt. 2) call system_clock(t0,clock_rate,clock_max)
 
-     allocate(bl1(0:Par%ellmax+Par%Lmax,3),wl1(0:Par%ellmax+Par%Lmax,6))
+     allocate(bl1(0:Par%ellmax,3),wl1(0:Par%ellmax,6))
      call read_beam(Par%inbeamfile1,bl1,wl1)
      if (Par%do_cross) then
-        allocate(bl2(0:Par%ellmax+Par%Lmax,3),wl2(0:Par%ellmax+Par%Lmax,6))
+        allocate(bl2(0:Par%ellmax,3),wl2(0:Par%ellmax,6))
         call read_beam(Par%inbeamfile2,bl2,wl2)
      endif
      
-     allocate(clfid(0:Par%ellmax+Par%Lmax,6))
+     allocate(clfid(0:Par%ellmax,6))
      call read_cl(Par%inclfile,clfid)
-     allocate(clEEfid(0:Par%ellmax+Par%Lmax))
+     allocate(clEEfid(0:Par%ellmax))
      clEEfid = clfid(:,myEE)
      
      allocate(nl1(0:Par%ellmax,2))
@@ -75,15 +75,15 @@ program EB_estimator
      
      allocate(clEEobs1(0:Par%ellmax))
      allocate(clBBobs1(0:Par%ellmax))
-     clEEobs1 = clfid(0:Par%ellmax,myEE) * wl1(0:Par%ellmax,myEE) + nl1(:,1)
-     clBBobs1 = clfid(0:Par%ellmax,myBB) * wl1(0:Par%ellmax,myBB) + nl1(:,2)
+     clEEobs1 = clfid(:,myEE) * wl1(:,myEE) + nl1(:,1)
+     clBBobs1 = clfid(:,myBB) * wl1(:,myBB) + nl1(:,2)
      deallocate(nl1)
  
      if (Par%do_cross) then
         allocate(clEEobs2(0:Par%ellmax))
         allocate(clBBobs2(0:Par%ellmax))
-        clEEobs2 = clfid(0:Par%ellmax,myEE) * wl2(0:Par%ellmax,myEE) + nl2(:,1)
-        clBBobs2 = clfid(0:Par%ellmax,myBB) * wl2(0:Par%ellmax,myBB) + nl2(:,2)
+        clEEobs2 = clfid(:,myEE) * wl2(:,myEE) + nl2(:,1)
+        clBBobs2 = clfid(:,myBB) * wl2(:,myBB) + nl2(:,2)
         deallocate(nl2)
      endif
    
@@ -107,27 +107,27 @@ program EB_estimator
   call mpi_bcast(Par%compute_biasalpha,1,mpi_logical,0,mpi_comm_world,mpierr)
   call mpi_bcast(Par%do_cross,1,mpi_logical,0,mpi_comm_world,mpierr)
   
-  nele = Par%ellmax+Par%Lmax+1
+  nele = Par%ellmax+1
 
   if (myid .ne. 0) then
-     allocate(clEEfid(0:Par%ellmax+Par%Lmax),clEEobs1(0:Par%ellmax),clBBobs1(0:Par%ellmax))
-     allocate(bl1(0:Par%ellmax+Par%Lmax,3),wl1(0:Par%ellmax+Par%Lmax,6))
+     allocate(clEEfid(0:Par%ellmax),clEEobs1(0:Par%ellmax),clBBobs1(0:Par%ellmax))
+     allocate(bl1(0:Par%ellmax,3),wl1(0:Par%ellmax,6))
   endif
-  call mpi_bcast(clEEfid,nele,mpi_real8,0,mpi_comm_world, mpierr)
+  call mpi_bcast(clEEfid,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clEEobs1,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clBBobs1,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
-  call mpi_bcast(bl1,3*nele,mpi_real8,0,mpi_comm_world, mpierr)
-  call mpi_bcast(wl1,6*nele,mpi_real8,0,mpi_comm_world, mpierr)
+  call mpi_bcast(bl1,3*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
+  call mpi_bcast(wl1,6*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
 
   if (Par%do_cross) then
      if (myid .ne. 0) then
         allocate(clEEobs2(0:Par%ellmax),clBBobs2(0:Par%ellmax))
-        allocate(bl2(0:Par%ellmax+Par%Lmax,3),wl2(0:Par%ellmax+Par%Lmax,6))
+        allocate(bl2(0:Par%ellmax,3),wl2(0:Par%ellmax,6))
      endif
      call mpi_bcast(clEEobs2,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
      call mpi_bcast(clBBobs2,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
-     call mpi_bcast(bl2,3*nele,mpi_real8,0,mpi_comm_world, mpierr)
-     call mpi_bcast(wl2,6*nele,mpi_real8,0,mpi_comm_world, mpierr)
+     call mpi_bcast(bl2,3*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
+     call mpi_bcast(wl2,6*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
   endif
   
   call mpi_barrier(mpi_comm_world, mpierr)
@@ -159,6 +159,7 @@ program EB_estimator
            npix = getsize_fits(trim(Par%inmaskfile1))
            allocate(mask1(0:npix-1,1:3)) 
            call read_mask_and_compute_fsky(Par%inmaskfile1,mask1,fsky1)
+           if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'fsky mask 1: ',fsky1
         endif
         if (Par%do_cross .and. (Par%inmaskfile2 .ne. '')) then
            if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read mask 2'
@@ -166,6 +167,7 @@ program EB_estimator
            npix = getsize_fits(trim(Par%inmaskfile2))
            allocate(mask2(0:npix-1,1:3))     
            call read_mask_and_compute_fsky(Par%inmaskfile2,mask2,fsky2)
+           if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'fsky mask2: ',fsky2
         endif
      endif
      
@@ -312,16 +314,17 @@ program EB_estimator
         do iell=Par%ellmin,Par%ellmax
            allocate(wig2(iL+iell+1))
            call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
-           allocate(F_EB1(jmin:jmax),F_BE1(jmin:jmax))
-           F_EB1 = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl1(iell,1)*bl1(jmin:jmax,1)
-           F_BE1 = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl1(jmin:jmax,1)*bl1(iell,1)
+           usedjmax = min(jmax,Par%ellmax)
+           allocate(F_EB1(jmin:usedjmax),F_BE1(jmin:usedjmax))
+           F_EB1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(jmin:usedjmax,myE)
+           F_BE1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl1(jmin:usedjmax,myE)*bl1(iell,myE)
            if (Par%do_cross) then
-              allocate(F_EB2(jmin:jmax),F_BE2(jmin:jmax))
-              F_EB2 = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl2(iell,1)*bl2(jmin:jmax,1)
-              F_BE2 = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl2(jmin:jmax,1)*bl2(iell,1)
+              allocate(F_EB2(jmin:usedjmax),F_BE2(jmin:usedjmax))
+              F_EB2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(jmin:usedjmax,myE)
+              F_BE2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl2(jmin:usedjmax,myE)*bl2(iell,myE)
            endif
            Gl = (2*iell + 1)/FOURPI
-           do j = max(jmin,Par%ellmin),min(jmax,Par%ellmax)
+           do j = max(jmin,Par%ellmin),usedjmax
               if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0) .and. (iL .ge. abs(j-iell)) .and. (iL .le. j+iell)) then
 !              if ((j .ge. iell) .and. (jmod(iL+iell+j,2).eq.0)) then
                  if (j .eq. iell) then
@@ -465,13 +468,14 @@ program EB_estimator
               do iell=Par%ellmin,Par%ellmax
                  allocate(wig2(iL+iell+1),wigall(iL+iell+1))
                  call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
-                 allocate(F_EB1(jmin:jmax),F_BE1(jmin:jmax))
-                 F_EB1 = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl1(iell,1)*bl1(jmin:jmax,1)
-                 F_BE1 = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl1(jmin:jmax,1)*bl1(iell,1)
+                 usedjmax = min(jmax,Par%ellmax)
+                 allocate(F_EB1(jmin:usedjmax),F_BE1(jmin:usedjmax))
+                 F_EB1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(jmin:usedjmax,myE)
+                 F_BE1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl1(jmin:usedjmax,myE)*bl1(iell,myE)
                  if (Par%do_cross) then
-                    allocate(F_EB2(jmin:jmax),F_BE2(jmin:jmax))
-                    F_EB2 = 2 * wig2(1:jmax-jmin+1) * clEEfid(iell)*bl2(iell,1)*bl2(jmin:jmax,1)
-                    F_BE2 = 2 * wig2(1:jmax-jmin+1) * clEEfid(jmin:jmax)*bl2(jmin:jmax,1)*bl2(iell,1)
+                    allocate(F_EB2(jmin:usedjmax),F_BE2(jmin:usedjmax))
+                    F_EB2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(jmin:usedjmax,myE)
+                    F_BE2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl2(jmin:usedjmax,myE)*bl2(iell,myE)
                  endif
                  norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
                  !loop emm
@@ -484,8 +488,8 @@ program EB_estimator
                        curralmE1 = almE1(:,iell,iemm)
                        curralmB1 = almB1(:,iell,iemm)
                     else 
-                       curralmE1 = conjg(almE1(:,iell,-iemm))
-                       curralmB1 = conjg(almB1(:,iell,-iemm))
+                       curralmE1 = conjg(almE1(:,iell,-iemm))*(-1)**(-iemm)
+                       curralmB1 = conjg(almB1(:,iell,-iemm))*(-1)**(-iemm)
                     endif
 
                     if (Par%do_cross) then
@@ -493,8 +497,8 @@ program EB_estimator
                           curralmE2 = almE2(:,iell,iemm)
                           curralmB2 = almB2(:,iell,iemm)
                        else
-                          curralmE2 = conjg(almE2(:,iell,-iemm))
-                          curralmB2 = conjg(almB2(:,iell,-iemm))
+                          curralmE2 = conjg(almE2(:,iell,-iemm))*(-1)**(-iemm)
+                          curralmB2 = conjg(almB2(:,iell,-iemm))*(-1)**(-iemm)
                        endif
                     endif
 
@@ -508,7 +512,7 @@ program EB_estimator
                     csi = csi * norm * (-1.0)**iemm
 
                     !loop ell'
-                    do j = max(jminall,jmin,Par%ellmin),min(jmaxall,jmax,Par%ellmax)
+                    do j = max(jminall,jmin,Par%ellmin),min(jmaxall,usedjmax)
                        if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0) .and. (iL .ge. abs(j-iell)) .and. (iL .le. j+iell)) then
                        !if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0)) then
                           if (j .eq. iell) then
@@ -521,8 +525,8 @@ program EB_estimator
                              curralmE1star = conjg(almE1(:,j,iemmp))
                              curralmB1star = conjg(almB1(:,j,iemmp))
                           else
-                             curralmE1star = almE1(:,j,-iemmp)
-                             curralmB1star = almB1(:,j,-iemmp)
+                             curralmE1star = almE1(:,j,-iemmp)*(-1)**(-iemmp)
+                             curralmB1star = almB1(:,j,-iemmp)*(-1)**(-iemmp)
                           endif
                           almalpha1(:,iL,iM) = almalpha1(:,iL,iM) + factor * &
                              (F_EB1(j) * curralmE1 * curralmB1star / clBBobs1(j) / clEEobs1(iell) + &
@@ -533,8 +537,8 @@ program EB_estimator
                                 curralmE2star = conjg(almE2(:,j,iemmp))
                                 curralmB2star = conjg(almB2(:,j,iemmp))
                              else
-                                curralmE2star = almE2(:,j,-iemmp)
-                                curralmB2star = almB2(:,j,-iemmp)
+                                curralmE2star = almE2(:,j,-iemmp)*(-1)**(-iemmp)
+                                curralmB2star = almB2(:,j,-iemmp)*(-1)**(-iemmp)
                              endif                    
                              almalpha2(:,iL,iM) = almalpha2(:,iL,iM) + factor * &
                                 (F_EB2(j) * curralmE2 * curralmB2star / clBBobs2(j) / clEEobs2(iell) + &
