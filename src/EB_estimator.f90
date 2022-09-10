@@ -15,7 +15,7 @@ program EB_estimator
   
   !variables
   integer :: myid,nproc,mpierr
-  integer :: indmax,ind
+  integer :: indmax,indLMmax,ind,indLM,LM(2)
   integer :: j,jmin,jmax, iell
   integer :: jminall,jmaxall,usedjmax
   integer :: isim,Lcount,iL,nele,elementcount
@@ -27,7 +27,8 @@ program EB_estimator
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
   real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha,red_biasalpha
   complex(spc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
-  complex(spc), allocatable, dimension(:,:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
+  complex(spc), allocatable, dimension(:,:,:) :: alm1,alm2
+  complex(spc), allocatable, dimension(:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
   complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
   real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2,mask1,mask2
@@ -281,6 +282,8 @@ program EB_estimator
      endif
   endif
 
+  if (Par%compute_alphalm) indLMmax = lm2index(Par%Lmax,Par%Lmax,Par%Lmax)
+
   if (Par%compute_biasalpha .and. (.not. Par%compute_alphalm)) then
     deallocate(almE1,almB1)
     if (Par%do_cross) deallocate(almE2,almB2)
@@ -452,12 +455,12 @@ program EB_estimator
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computing alpha_LM'
       
      call mpi_barrier(mpi_comm_world, mpierr)
-     allocate(almalpha1(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+     allocate(almalpha1(1:Par%nsims,0:indLMmax))
      almalpha1=0
      allocate(curralmE1(Par%nsims),curralmB1(Par%nsims),curralmE1star(Par%nsims),curralmB1star(Par%nsims))
 
      if (Par%do_cross) then
-        allocate(almalpha2(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+        allocate(almalpha2(1:Par%nsims,0:indLMmax))
         almalpha2=0
         allocate(curralmE2(Par%nsims),curralmB2(Par%nsims),curralmE2star(Par%nsims),curralmB2star(Par%nsims))
      endif
@@ -467,6 +470,7 @@ program EB_estimator
         do iM=0,iL
            if (myid .eq. mod(elementcount,nproc)) then
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' doing L=', iL, ' and M=',iM
+              indLM = lm2index(Par%Lmax,iL,iM)
               !loop ell
               do iell=Par%ellmin,Par%ellmax
                  allocate(wig2(iL+iell+1),wigall(iL+iell+1))
@@ -539,7 +543,7 @@ program EB_estimator
                              curralmB1star = almB1(:,ind)*(-1)**(-iemmp)
                           endif
                           ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                          almalpha1(:,iL,iM) = almalpha1(:,iL,iM) + factor * &
+                          almalpha1(:,indLM) = almalpha1(:,indLM) + factor * &
                              (F_EB1(j) * curralmE1 * curralmB1star / clBBobs1(j) + &
                               F_BE1(j) * curralmB1 * curralmE1star / clEEobs1(j))
 
@@ -554,7 +558,7 @@ program EB_estimator
                                 curralmB2star = almB2(:,ind)*(-1)**(-iemmp)
                              endif
                              ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                             almalpha2(:,iL,iM) = almalpha2(:,iL,iM) + factor * &
+                             almalpha2(:,indLM) = almalpha2(:,indLM) + factor * &
                                 (F_EB2(j) * curralmE2 * curralmB2star / clBBobs2(j) + &
                                  F_BE2(j) * curralmB2 * curralmE2star / clEEobs2(j)) 
                           endif
@@ -581,55 +585,69 @@ program EB_estimator
 
      call mpi_barrier(mpi_comm_world, mpierr)
      
-     allocate(red_almalpha1(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+     allocate(red_almalpha1(1:Par%nsims,0:indLMmax))
      red_almalpha1=0.0
 
      call mpi_barrier(mpi_comm_world, mpierr)
-     nele = Par%Lmax+1
-     call mpi_reduce(almalpha1,red_almalpha1,nele*nele*Par%nsims,mpi_complex,mpi_sum,0,mpi_comm_world,mpierr)
+     nele = indLMmax+1
+     call mpi_reduce(almalpha1,red_almalpha1,Par%nsims*nele,mpi_complex,mpi_sum,0,mpi_comm_world,mpierr)
      deallocate(almalpha1)
      call mpi_barrier(mpi_comm_world, mpierr)
 
      if (Par%do_cross) then
-        allocate(red_almalpha2(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+        allocate(red_almalpha2(1:Par%nsims,0:indLMmax))
         red_almalpha2=0.0
 
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_reduce(almalpha2,red_almalpha2,nele*nele*Par%nsims,mpi_complex,mpi_sum,0,mpi_comm_world,mpierr)
+        call mpi_reduce(almalpha2,red_almalpha2,Par%nsims*nele,mpi_complex,mpi_sum,0,mpi_comm_world,mpierr)
         deallocate(almalpha2)
         call mpi_barrier(mpi_comm_world, mpierr)
      endif
      
      if (myid .eq. 0) then
+        allocate(alm1(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+        alm1 = 0
+        do indLM=0,indLMmax
+           LM = index2lm(Par%Lmax,indLM)
+           alm1(:,lm(1),lm(2)) = red_almalpha1(:,indLM) 
+        enddo
+        deallocate(red_almalpha1)
         do iL=Par%Lmin,Par%Lmax
-           red_almalpha1(:,iL,:) = red_almalpha1(:,iL,:) / red_one_o_var1(iL)
+           alm1(:,iL,:) = alm1(:,iL,:) / red_one_o_var1(iL)
         enddo
         if (Par%do_cross) then
+           allocate(alm2(1:Par%nsims,0:Par%Lmax,0:Par%Lmax))
+           alm2 = 0
+           do indLM=0,indLMmax
+              LM = index2lm(Par%Lmax,indLM)
+              alm2(:,lm(1),lm(2)) = red_almalpha2(:,indLM)
+           enddo
+           deallocate(red_almalpha2)
            do iL=Par%Lmin,Par%Lmax
-              red_almalpha2(:,iL,:) = red_almalpha2(:,iL,:) / red_one_o_var2(iL)
+              alm2(:,iL,:) = alm2(:,iL,:) / red_one_o_var2(iL)
            enddo
         endif
         if (Par%feedback .gt. 1) write(0,*) 'Write out alphalm'
-        call write_out_alms(Par%outalmfile1,Par%ssim,Par%zerofill,Par%endnamealm1,red_almalpha1)
-        if (Par%do_cross) call write_out_alms(Par%outalmfile2,Par%ssim,Par%zerofill,Par%endnamealm2,red_almalpha2)
+        call write_out_alms(Par%outalmfile1,Par%ssim,Par%zerofill,Par%endnamealm1,alm1)
+        if (Par%do_cross) call write_out_alms(Par%outalmfile2,Par%ssim,Par%zerofill,Par%endnamealm2,alm2)
         if (Par%compute_alphacl) then
            if (Par%do_cross) then
               if (Par%compute_biasalpha .and. Par%subtract_bias) then
-                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha1,Par%Lmin,bias=red_biasalpha,alms2=red_almalpha2)
+                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,alm1,Par%Lmin,bias=red_biasalpha,alms2=alm2)
               else
-                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha1,Par%Lmin,alms2=red_almalpha2)
+                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,alm1,Par%Lmin,alms2=alm2)
               endif
            else
               if (Par%compute_biasalpha .and. Par%subtract_bias) then
-                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha1,Par%Lmin,bias=red_biasalpha)
+                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,alm1,Par%Lmin,bias=red_biasalpha)
               else
-                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,red_almalpha1,Par%Lmin)
+                 call compute_and_write_cl(Par%outclfile,Par%ssim,Par%zerofill,Par%endnamecl,alm1,Par%Lmin)
               endif
 
            endif
         endif
-        deallocate(red_almalpha1,red_one_o_var1)
-        if (Par%do_cross) deallocate(red_almalpha2,red_one_o_var2)
+        deallocate(alm1,red_one_o_var1)
+        if (Par%do_cross) deallocate(alm2,red_one_o_var2)
         if (Par%compute_biasalpha) deallocate(red_biasalpha)
      endif
   else
