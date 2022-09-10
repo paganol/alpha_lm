@@ -15,6 +15,7 @@ program EB_estimator
   
   !variables
   integer :: myid,nproc,mpierr
+  integer :: indmax,ind
   integer :: j,jmin,jmax, iell
   integer :: jminall,jmaxall,usedjmax
   integer :: isim,Lcount,iL,nele,elementcount
@@ -25,7 +26,7 @@ program EB_estimator
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
   real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha,red_biasalpha
-  complex(spc), allocatable, dimension(:,:,:) :: almE1,almB1,almE2,almB2
+  complex(spc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
   complex(spc), allocatable, dimension(:,:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
   complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
@@ -143,12 +144,13 @@ program EB_estimator
         call mpi_bcast(Par%endnamemap2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      endif
 
-     nele = Par%ellmax+1
-     allocate(almE1(Par%nsims,0:Par%ellmax,0:Par%ellmax))
-     allocate(almB1(Par%nsims,0:Par%ellmax,0:Par%ellmax))     
+     indmax = lm2index(Par%ellmax,Par%ellmax,Par%ellmax) 
+     nele = indmax+1
+     allocate(almE1(Par%nsims,0:indmax))
+     allocate(almB1(Par%nsims,0:indmax))     
      if (Par%do_cross) then
-        allocate(almE2(Par%nsims,0:Par%ellmax,0:Par%ellmax))
-        allocate(almB2(Par%nsims,0:Par%ellmax,0:Par%ellmax))
+        allocate(almE2(Par%nsims,0:indmax))
+        allocate(almB2(Par%nsims,0:indmax))
      endif
 
      !mask
@@ -180,25 +182,25 @@ program EB_estimator
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
            if (apply_mask1) then
-              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,1,mask=mask1)
+              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1,mask=mask1)
            else
-              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,1)
+              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1)
            endif
         endif
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(almE1,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world, mpierr)
-        call mpi_bcast(almB1,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world, mpierr)       
+        call mpi_bcast(almE1,Par%nsims*nele,mpi_complex,0,mpi_comm_world, mpierr)
+        call mpi_bcast(almB1,Par%nsims*nele,mpi_complex,0,mpi_comm_world, mpierr)       
         if (Par%do_cross) then
            if (myid .eq. 0) then
               if (apply_mask2) then
-                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,1,mask=mask2)
+                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1,mask=mask2)
               else
-                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,1)
+                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1)
               endif
            endif
            call mpi_barrier(mpi_comm_world, mpierr)
-           call mpi_bcast(almE2,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world,mpierr)
-           call mpi_bcast(almB2,Par%nsims*nele*nele,mpi_complex,0,mpi_comm_world,mpierr)
+           call mpi_bcast(almE2,Par%nsims*nele,mpi_complex,0,mpi_comm_world,mpierr)
+           call mpi_bcast(almB2,Par%nsims*nele,mpi_complex,0,mpi_comm_world,mpierr)
         endif
      else
         almE1=0
@@ -211,16 +213,16 @@ program EB_estimator
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               mapname=trim(Par%inmapfile1)//trim(simstr)//trim(Par%endnamemap1)
               if (apply_mask1) then
-                 call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,ct,mask=mask1)
+                 call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct,mask=mask1)
               else
-                 call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,ct)
+                 call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct)
               endif
            endif
            ct=ct+1
         enddo
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_allreduce(mpi_in_place,almE1,Par%nsims*nele*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
-        call mpi_allreduce(mpi_in_place,almB1,Par%nsims*nele*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
+        call mpi_allreduce(mpi_in_place,almE1,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
+        call mpi_allreduce(mpi_in_place,almB1,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
 
         call mpi_barrier(mpi_comm_world, mpierr)     
         
@@ -234,25 +236,26 @@ program EB_estimator
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  mapname=trim(Par%inmapfile2)//trim(simstr)//trim(Par%endnamemap2)
                  if (apply_mask2) then
-                    call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,ct,mask=mask2)
+                    call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct,mask=mask2)
                  else
-                    call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,ct)
+                    call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct)
                  endif
               endif
               ct=ct+1
            enddo
            call mpi_barrier(mpi_comm_world, mpierr)
-           call mpi_allreduce(mpi_in_place,almE2,Par%nsims*nele*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
-           call mpi_allreduce(mpi_in_place,almB2,Par%nsims*nele*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
+           call mpi_allreduce(mpi_in_place,almE2,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
+           call mpi_allreduce(mpi_in_place,almB2,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
         endif
      endif
   endif
 
   if (Par%compute_biasalpha) then
+     nele=Par%ellmax+1
      if (Par%do_cross) then
         allocate(clEEmap12(Par%nsims,0:Par%ellmax))
         allocate(clBBmap12(Par%nsims,0:Par%ellmax))
-        if (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,clEEmap12,clBBmap12,almE2,almB2)
+        if (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,Par%ellmax,clEEmap12,clBBmap12,almE2,almB2)
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(clEEmap12,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
         call mpi_bcast(clBBmap12,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
@@ -267,7 +270,7 @@ program EB_estimator
      else
         allocate(clEEmap1(Par%nsims,0:Par%ellmax))
         allocate(clBBmap1(Par%nsims,0:Par%ellmax))
-        if  (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,clEEmap1,clBBmap1)
+        if  (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,Par%ellmax,clEEmap1,clBBmap1)
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(clEEmap1,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
         call mpi_bcast(clBBmap1,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
@@ -486,20 +489,24 @@ program EB_estimator
 !                    call DRC3JJ(real(iell,kind=dp), real(iL,kind=dp), real(-iemm,kind=dp), real(iM,kind=dp), &
 !                           jminall, jmaxall, wigall, iL+iell+1,IER)
                     if (iemm .ge. 0) then
-                       curralmE1 = almE1(:,iell,iemm)
-                       curralmB1 = almB1(:,iell,iemm)
-                    else 
-                       curralmE1 = conjg(almE1(:,iell,-iemm))*(-1)**(-iemm)
-                       curralmB1 = conjg(almB1(:,iell,-iemm))*(-1)**(-iemm)
+                       ind = lm2index(Par%ellmax,iell,iemm)
+                       curralmE1 = almE1(:,ind)
+                       curralmB1 = almB1(:,ind)
+                    else
+                       ind = lm2index(Par%ellmax,iell,-iemm)
+                       curralmE1 = conjg(almE1(:,ind))*(-1)**(-iemm)
+                       curralmB1 = conjg(almB1(:,ind))*(-1)**(-iemm)
                     endif
 
                     if (Par%do_cross) then
                        if (iemm .ge. 0) then
-                          curralmE2 = almE2(:,iell,iemm)
-                          curralmB2 = almB2(:,iell,iemm)
+                          ind = lm2index(Par%ellmax,iell,iemm)
+                          curralmE2 = almE2(:,ind)
+                          curralmB2 = almB2(:,ind)
                        else
-                          curralmE2 = conjg(almE2(:,iell,-iemm))*(-1)**(-iemm)
-                          curralmB2 = conjg(almB2(:,iell,-iemm))*(-1)**(-iemm)
+                          ind = lm2index(Par%ellmax,iell,-iemm)
+                          curralmE2 = conjg(almE2(:,ind))*(-1)**(-iemm)
+                          curralmB2 = conjg(almB2(:,ind))*(-1)**(-iemm)
                        endif
                     endif
 
@@ -523,11 +530,13 @@ program EB_estimator
                           endif
 
                           if (emmppos) then
-                             curralmE1star = conjg(almE1(:,j,iemmp))
-                             curralmB1star = conjg(almB1(:,j,iemmp))
+                             ind = lm2index(Par%ellmax,j,iemmp)
+                             curralmE1star = conjg(almE1(:,ind))
+                             curralmB1star = conjg(almB1(:,ind))
                           else
-                             curralmE1star = almE1(:,j,-iemmp)*(-1)**(-iemmp)
-                             curralmB1star = almB1(:,j,-iemmp)*(-1)**(-iemmp)
+                             ind = lm2index(Par%ellmax,j,-iemmp)
+                             curralmE1star = almE1(:,ind)*(-1)**(-iemmp)
+                             curralmB1star = almB1(:,ind)*(-1)**(-iemmp)
                           endif
                           ! F_XY already divided by clEEobs(l) or clBBobs(l)
                           almalpha1(:,iL,iM) = almalpha1(:,iL,iM) + factor * &
@@ -536,11 +545,13 @@ program EB_estimator
 
                           if (Par%do_cross) then
                              if (emmppos) then
-                                curralmE2star = conjg(almE2(:,j,iemmp))
-                                curralmB2star = conjg(almB2(:,j,iemmp))
+                                ind = lm2index(Par%ellmax,j,iemmp)
+                                curralmE2star = conjg(almE2(:,ind))
+                                curralmB2star = conjg(almB2(:,ind))
                              else
-                                curralmE2star = almE2(:,j,-iemmp)*(-1)**(-iemmp)
-                                curralmB2star = almB2(:,j,-iemmp)*(-1)**(-iemmp)
+                                ind = lm2index(Par%ellmax,j,-iemmp)
+                                curralmE2star = almE2(:,ind)*(-1)**(-iemmp)
+                                curralmB2star = almB2(:,ind)*(-1)**(-iemmp)
                              endif
                              ! F_XY already divided by clEEobs(l) or clBBobs(l)
                              almalpha2(:,iL,iM) = almalpha2(:,iL,iM) + factor * &
