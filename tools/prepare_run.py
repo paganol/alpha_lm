@@ -182,7 +182,7 @@ slurm = """#!/bin/bash -l
 #SBATCH -o run_job.log
 #SBATCH -A INF22_lspe
 #SBATCH --export=ALL
-#SBATCH --mem=86000
+#SBATCH --mem=182000
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=pgnlcu@unife.it
 

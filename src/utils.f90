@@ -10,15 +10,15 @@ module utils
   
 contains
   
-  subroutine make_noise(filename,nl,noiseE,noiseB)
+  subroutine make_noise(filename,nl,noiseE,noiseB,feedback)
     character(len=FILENAMELEN) :: filename
     real(dp),dimension(0:,1:) , intent(inout) :: nl
     real(dp) :: noiseE,noiseB
-    integer :: lmax,myunit,ll,l
+    integer :: lmax,myunit,ll,l,feedback
     character(len=2048) :: fakestring
     
     if (len(trim(filename)) .gt. 0) then
-       
+       if (feedback .gt. 1) write(0,*) 'Reading noise spectra'       
        lmax=size(nl,dim=1)-1
        nl=0.0d0
        
@@ -31,6 +31,7 @@ contains
        close(myunit)
        
     else
+       if (feedback .gt. 1) write(0,*) 'Building noise spectra'
        nl(:,1) = (noiseE*DEG2RAD/60.0)**2
        nl(:,2) = (noiseB*DEG2RAD/60.0)**2
     endif

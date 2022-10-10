@@ -9,15 +9,15 @@ program EB_estimator
   use driver
   use utils
   use wigner 
-  use wigner1
+!  use wigner1
   
   implicit none
   
   !variables
   integer :: myid,nproc,mpierr
   integer :: indmax,indLMmax,ind,indLM,LM(2)
-  integer :: j,jmin,jmax, iell
-  integer :: jminall,jmaxall,usedjmax
+  integer :: iellp,ellpmin,ellpmax, iell
+  integer :: ellpminall,ellpmaxall,usedellpmax
   integer :: isim,Lcount,iL,nele,elementcount
   integer :: iemm, iM, iemmp
   integer(i8b) :: npix
@@ -37,7 +37,7 @@ program EB_estimator
   character(len=FILENAMELEN) :: mapname
   character(len=16) :: simstr
   character(len=1) :: strzerofill
-!  integer :: IER
+  integer :: IER
   
   !input parameters
   Type(Params) :: Par
@@ -69,10 +69,10 @@ program EB_estimator
      clEEfid = clfid(:,myEE)
      
      allocate(nl1(0:Par%ellmax,2))
-     call make_noise(Par%innoisefile1,nl1,Par%noiseE1,Par%noiseB1) 
+     call make_noise(Par%innoisefile1,nl1,Par%noiseE1,Par%noiseB1,Par%feedback) 
      if (Par%do_cross) then     
         allocate(nl2(0:Par%ellmax,2))
-        call make_noise(Par%innoisefile2,nl2,Par%noiseE2,Par%noiseB2)
+        call make_noise(Par%innoisefile2,nl2,Par%noiseE2,Par%noiseB2,Par%feedback)
      endif
      
      allocate(clEEobs1(0:Par%ellmax))
@@ -319,52 +319,51 @@ program EB_estimator
         if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' doing multipole ', iL
         do iell=Par%ellmin,Par%ellmax
            allocate(wig2(iL+iell+1))
-           call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
-           usedjmax = min(jmax,Par%ellmax)
-           allocate(F_EB1(jmin:usedjmax),F_BE1(jmin:usedjmax))
-           F_EB1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(jmin:usedjmax,myE)
-           F_BE1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl1(jmin:usedjmax,myE)*bl1(iell,myE)
+           call Wigner3j(wig2, ellpmin, ellpmax, iell, iL, -2, 2, 0)
+           usedellpmax = min(ellpmax,Par%ellmax)
+           allocate(F_EB1(ellpmin:usedellpmax),F_BE1(ellpmin:usedellpmax))
+           F_EB1 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(ellpmin:usedellpmax,myE)
+           F_BE1 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl1(ellpmin:usedellpmax,myE)*bl1(iell,myE)
            if (Par%do_cross) then
-              allocate(F_EB2(jmin:usedjmax),F_BE2(jmin:usedjmax))
-              F_EB2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(jmin:usedjmax,myE)
-              F_BE2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl2(jmin:usedjmax,myE)*bl2(iell,myE)
+              allocate(F_EB2(ellpmin:usedellpmax),F_BE2(ellpmin:usedellpmax))
+              F_EB2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(ellpmin:usedellpmax,myE)
+              F_BE2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl2(ellpmin:usedellpmax,myE)*bl2(iell,myE)
            endif
            Gl = (2*iell + 1)/FOURPI
-           do j = max(jmin,Par%ellmin),usedjmax
-              if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0) .and. (iL .ge. abs(j-iell)) .and. (iL .le. j+iell)) then
-!              if ((j .ge. iell) .and. (jmod(iL+iell+j,2).eq.0)) then
-                 if (j .eq. iell) then
-                    factor = 0.5 * Gl * (2.0*j + 1.0)
+           do iellp = max(ellpmin,Par%ellmin),usedellpmax
+              if ((iellp .ge. iell) .and. (jmod(iL+iell+iellp,2) .eq. 0) .and. (iL .ge. abs(iellp-iell)) .and. (iL .le. iellp+iell)) then
+                 if (iellp .eq. iell) then
+                    factor = 0.5 * Gl * (2.0*iellp + 1.0)
                  else 
-                    factor = Gl * (2.0*j + 1.0)
+                    factor = Gl * (2.0*iellp + 1.0)
                  endif
                  one_o_var1(iL) = one_o_var1(iL) + factor * &
-                       (F_EB1(j)**2/clEEobs1(iell)/clBBobs1(j) + &
-                        F_BE1(j)**2/clBBobs1(iell)/clEEobs1(j))                  
+                       (F_EB1(iellp)**2/clEEobs1(iell)/clBBobs1(iellp) + &
+                        F_BE1(iellp)**2/clBBobs1(iell)/clEEobs1(iellp))                  
                  if (Par%do_cross) then
                     one_o_var2(iL) = one_o_var2(iL) + factor * &
-                         (F_EB2(j)**2/clEEobs2(iell)/clBBobs2(j) + &
-                          F_BE2(j)**2/clBBobs2(iell)/clEEobs2(j))
+                         (F_EB2(iellp)**2/clEEobs2(iell)/clBBobs2(iellp) + &
+                          F_BE2(iellp)**2/clBBobs2(iell)/clEEobs2(iellp))
                  endif
                  !bias computation
                  if (Par%compute_biasalpha) then
-                    if (j .eq. iell) then
-                       factor = 0.25 * Gl * (2.0*j + 1.0)
+                    if (iellp .eq. iell) then
+                       factor = 0.25 * Gl * (2.0*iellp + 1.0)
                     else
-                       factor = Gl * (2.0*j + 1.0)
+                       factor = Gl * (2.0*iellp + 1.0)
                     endif
                     if (Par%do_cross) then 
                         biasalpha(:,iL) = biasalpha(:,iL) + factor * &
-                          (F_EB1(j)*F_EB2(j) * clEEmap12(:,iell) * clBBmap12(:,j) / &
-                             (clBBobs1(j) * clBBobs2(j) * clEEobs1(iell) * clEEobs2(iell)) + &
-                              F_BE1(j)*F_BE2(j) * clEEmap12(:,j) * clBBmap12(:,iell) / &
-                             (clBBobs1(iell) * clBBobs1(iell) * clEEobs2(j) * clEEobs2(j)))
+                          (F_EB1(iellp)*F_EB2(iellp) * clEEmap12(:,iell) * clBBmap12(:,iellp) / &
+                             (clBBobs1(iellp) * clBBobs2(iellp) * clEEobs1(iell) * clEEobs2(iell)) + &
+                              F_BE1(iellp)*F_BE2(iellp) * clEEmap12(:,iellp) * clBBmap12(:,iell) / &
+                             (clBBobs1(iell) * clBBobs1(iell) * clEEobs2(iellp) * clEEobs2(iellp)))
                     else
                         biasalpha(:,iL) = biasalpha(:,iL) + factor * &
-                          (F_EB1(j)**2 * clEEmap1(:,iell) * clBBmap1(:,j) / &
-                             (clBBobs1(j) * clBBobs1(j) * clEEobs1(iell) * clEEobs1(iell)) + &
-                              F_BE1(j)**2 * clEEmap1(:,j) * clBBmap1(:,iell) / &
-                             (clBBobs1(iell) * clBBobs1(iell) * clEEobs1(j) * clEEobs1(j)))
+                          (F_EB1(iellp)**2 * clEEmap1(:,iell) * clBBmap1(:,iellp) / &
+                             (clBBobs1(iellp) * clBBobs1(iellp) * clEEobs1(iell) * clEEobs1(iell)) + &
+                              F_BE1(iellp)**2 * clEEmap1(:,iellp) * clBBmap1(:,iell) / &
+                             (clBBobs1(iell) * clBBobs1(iell) * clEEobs1(iellp) * clEEobs1(iellp)))
                     endif 
                  endif
               endif
@@ -474,24 +473,24 @@ program EB_estimator
               !loop ell
               do iell=Par%ellmin,Par%ellmax
                  allocate(wig2(iL+iell+1),wigall(iL+iell+1))
-                 call Wigner3j(wig2, jmin, jmax, iell, iL, -2, 2, 0)
-                 usedjmax = min(jmax,Par%ellmax)
-                 allocate(F_EB1(jmin:usedjmax),F_BE1(jmin:usedjmax))
+                 call Wigner3j(wig2, ellpmin, ellpmax, iell, iL, -2, 2, 0)
+                 usedellpmax = min(ellpmax,Par%ellmax)
+                 allocate(F_EB1(ellpmin:usedellpmax),F_BE1(ellpmin:usedellpmax))
                  ! F_XY divided here by clEEobs(l) or clBBobs(l). It saves some computation time 
-                 F_EB1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(jmin:usedjmax,myE) / clEEobs1(iell) 
-                 F_BE1 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl1(jmin:usedjmax,myE)*bl1(iell,myE) / clBBobs1(iell)
+                 F_EB1 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(ellpmin:usedellpmax,myE) / clEEobs1(iell) 
+                 F_BE1 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl1(ellpmin:usedellpmax,myE)*bl1(iell,myE) / clBBobs1(iell)
                  if (Par%do_cross) then
-                    allocate(F_EB2(jmin:usedjmax),F_BE2(jmin:usedjmax))
-                    F_EB2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(jmin:usedjmax,myE) / clEEobs2(iell) 
-                    F_BE2 = 2 * wig2(1:usedjmax-jmin+1) * clEEfid(jmin:usedjmax)*bl2(jmin:usedjmax,myE)*bl2(iell,myE) / clBBobs2(iell)
+                    allocate(F_EB2(ellpmin:usedellpmax),F_BE2(ellpmin:usedellpmax))
+                    F_EB2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(ellpmin:usedellpmax,myE) / clEEobs2(iell) 
+                    F_BE2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl2(ellpmin:usedellpmax,myE)*bl2(iell,myE) / clBBobs2(iell)
                  endif
                  norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
-                    call Wigner3j(wigall, jminall, jmaxall, iell, iL, iemmp , -iemm, iM)
+                    call Wigner3j(wigall, ellpminall, ellpmaxall, iell, iL, iemmp , -iemm, iM)
 !                    call DRC3JJ(real(iell,kind=dp), real(iL,kind=dp), real(-iemm,kind=dp), real(iM,kind=dp), &
-!                           jminall, jmaxall, wigall, iL+iell+1,IER)
+!                           ellpminall, ellpmaxall, wigall, iL+iell+1,IER)
                     if (iemm .ge. 0) then
                        ind = lm2index(Par%ellmax,iell,iemm)
                        curralmE1 = almE1(:,ind)
@@ -517,53 +516,56 @@ program EB_estimator
                     emmppos = .true.
                     if (iemmp .lt. 0) emmppos=.false.
 
-                    allocate(csi(jminall:jmaxall))
-                    do j=jminall,jmaxall
-                       csi(j) = sqrt(2.0*j + 1.0) * wigall(j-jminall+1)
+                    allocate(csi(ellpminall:ellpmaxall))
+                    do iellp=ellpminall,ellpmaxall
+                       csi(iellp) = sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
                     enddo
                     csi = csi * norm * (-1.0)**iemm
 
                     !loop ell'
-                    do j = max(jminall,jmin,Par%ellmin),min(jmaxall,usedjmax)
-                       if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0) .and. (iL .ge. abs(j-iell)) .and. (iL .le. j+iell)) then
-                       !if ((j .ge. iell) .and. (jmod(iL+iell+j,2) .eq. 0)) then
-                          if (j .eq. iell) then
-                             factor = 0.5 * csi(j)
+                    !$omp parallel shared(almalpha2), private(iellp)
+                    !$omp do
+                    do iellp = max(ellpminall,ellpmin,Par%ellmin,iell),min(ellpmaxall,usedellpmax)
+                       if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (csi(iellp) .ne. 0.0d0)) then
+                          if (iellp .eq. iell) then
+                             factor = 0.5 * csi(iellp)
                           else
-                             factor = csi(j)
+                             factor = csi(iellp)
                           endif
 
                           if (emmppos) then
-                             ind = lm2index(Par%ellmax,j,iemmp)
+                             ind = lm2index(Par%ellmax,iellp,iemmp)
                              curralmE1star = conjg(almE1(:,ind))
                              curralmB1star = conjg(almB1(:,ind))
                           else
-                             ind = lm2index(Par%ellmax,j,-iemmp)
+                             ind = lm2index(Par%ellmax,iellp,-iemmp)
                              curralmE1star = almE1(:,ind)*(-1)**(-iemmp)
                              curralmB1star = almB1(:,ind)*(-1)**(-iemmp)
                           endif
                           ! F_XY already divided by clEEobs(l) or clBBobs(l)
                           almalpha1(:,indLM) = almalpha1(:,indLM) + factor * &
-                             (F_EB1(j) * curralmE1 * curralmB1star / clBBobs1(j) + &
-                              F_BE1(j) * curralmB1 * curralmE1star / clEEobs1(j))
+                             (F_EB1(iellp) * curralmE1 * curralmB1star / clBBobs1(iellp) + &
+                              F_BE1(iellp) * curralmB1 * curralmE1star / clEEobs1(iellp))
 
                           if (Par%do_cross) then
                              if (emmppos) then
-                                ind = lm2index(Par%ellmax,j,iemmp)
+                                ind = lm2index(Par%ellmax,iellp,iemmp)
                                 curralmE2star = conjg(almE2(:,ind))
                                 curralmB2star = conjg(almB2(:,ind))
                              else
-                                ind = lm2index(Par%ellmax,j,-iemmp)
+                                ind = lm2index(Par%ellmax,iellp,-iemmp)
                                 curralmE2star = almE2(:,ind)*(-1)**(-iemmp)
                                 curralmB2star = almB2(:,ind)*(-1)**(-iemmp)
                              endif
                              ! F_XY already divided by clEEobs(l) or clBBobs(l)
                              almalpha2(:,indLM) = almalpha2(:,indLM) + factor * &
-                                (F_EB2(j) * curralmE2 * curralmB2star / clBBobs2(j) + &
-                                 F_BE2(j) * curralmB2 * curralmE2star / clEEobs2(j)) 
+                                (F_EB2(iellp) * curralmE2 * curralmB2star / clBBobs2(iellp) + &
+                                 F_BE2(iellp) * curralmB2 * curralmE2star / clEEobs2(iellp)) 
                           endif
                        endif
                     enddo
+                    !$omp end do 
+                    !$omp end parallel
                     deallocate(csi)
                  enddo
                  deallocate(wig2,wigall,F_EB1,F_BE1)
