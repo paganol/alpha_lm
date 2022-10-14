@@ -32,7 +32,7 @@ program EB_estimator
   complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
   real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2,mask1,mask2
-  real(dp) :: factor,Gl,norm,fsky1,fsky2  
+  real(dp) :: factor,Gl,norm,fsky1,fsky2,m1_to_memm,m1_to_memmp 
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct
   character(len=FILENAMELEN) :: mapname
   character(len=16) :: simstr
@@ -330,8 +330,9 @@ program EB_estimator
               F_BE2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl2(ellpmin:usedellpmax,myE)*bl2(iell,myE)
            endif
            Gl = (2*iell + 1)/FOURPI
-           do iellp = max(ellpmin,Par%ellmin),usedellpmax
-              if ((iellp .ge. iell) .and. (jmod(iL+iell+iellp,2) .eq. 0) .and. (iL .ge. abs(iellp-iell)) .and. (iL .le. iellp+iell)) then
+           do iellp = max(ellpmin,Par%ellmin,iell),usedellpmax              
+              if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (wig2(iellp-ellpmin+1) .ne. 0.0d0)) then
+!              if ((iellp .ge. iell) .and. (jmod(iL+iell+iellp,2) .eq. 0) .and. (iL .ge. abs(iellp-iell)) .and. (iL .le. iellp+iell)) then
                  if (iellp .eq. iell) then
                     factor = 0.5 * Gl * (2.0*iellp + 1.0)
                  else 
@@ -485,9 +486,11 @@ program EB_estimator
                     F_BE2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl2(ellpmin:usedellpmax,myE)*bl2(iell,myE) / clBBobs2(iell)
                  endif
                  norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
+
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
+                    m1_to_memm=(-1)**(-iemm)
                     call Wigner3j(wigall, ellpminall, ellpmaxall, iell, iL, iemmp , -iemm, iM)
 !                    call DRC3JJ(real(iell,kind=dp), real(iL,kind=dp), real(-iemm,kind=dp), real(iM,kind=dp), &
 !                           ellpminall, ellpmaxall, wigall, iL+iell+1,IER)
@@ -497,19 +500,19 @@ program EB_estimator
                        curralmB1 = almB1(:,ind)
                     else
                        ind = lm2index(Par%ellmax,iell,-iemm)
-                       curralmE1 = conjg(almE1(:,ind))*(-1)**(-iemm)
-                       curralmB1 = conjg(almB1(:,ind))*(-1)**(-iemm)
+                       curralmE1 = conjg(almE1(:,ind))*m1_to_memm
+                       curralmB1 = conjg(almB1(:,ind))*m1_to_memm
                     endif
 
                     if (Par%do_cross) then
                        if (iemm .ge. 0) then
-                          ind = lm2index(Par%ellmax,iell,iemm)
+                          !ind is the same of map1
                           curralmE2 = almE2(:,ind)
                           curralmB2 = almB2(:,ind)
                        else
-                          ind = lm2index(Par%ellmax,iell,-iemm)
-                          curralmE2 = conjg(almE2(:,ind))*(-1)**(-iemm)
-                          curralmB2 = conjg(almB2(:,ind))*(-1)**(-iemm)
+                          !ind is the same of map1
+                          curralmE2 = conjg(almE2(:,ind))*m1_to_memm
+                          curralmB2 = conjg(almB2(:,ind))*m1_to_memm
                        endif
                     endif
 
@@ -522,9 +525,8 @@ program EB_estimator
                     enddo
                     csi = csi * norm * (-1.0)**iemm
 
-                    !loop ell'
-                    !$omp parallel shared(almalpha2), private(iellp)
-                    !$omp do
+                    m1_to_memmp=(-1)**(-iemmp) 
+
                     do iellp = max(ellpminall,ellpmin,Par%ellmin,iell),min(ellpmaxall,usedellpmax)
                        if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (csi(iellp) .ne. 0.0d0)) then
                           if (iellp .eq. iell) then
@@ -539,8 +541,8 @@ program EB_estimator
                              curralmB1star = conjg(almB1(:,ind))
                           else
                              ind = lm2index(Par%ellmax,iellp,-iemmp)
-                             curralmE1star = almE1(:,ind)*(-1)**(-iemmp)
-                             curralmB1star = almB1(:,ind)*(-1)**(-iemmp)
+                             curralmE1star = almE1(:,ind)*m1_to_memmp
+                             curralmB1star = almB1(:,ind)*m1_to_memmp
                           endif
                           ! F_XY already divided by clEEobs(l) or clBBobs(l)
                           almalpha1(:,indLM) = almalpha1(:,indLM) + factor * &
@@ -549,13 +551,13 @@ program EB_estimator
 
                           if (Par%do_cross) then
                              if (emmppos) then
-                                ind = lm2index(Par%ellmax,iellp,iemmp)
+                                !ind is the same of map1
                                 curralmE2star = conjg(almE2(:,ind))
                                 curralmB2star = conjg(almB2(:,ind))
                              else
-                                ind = lm2index(Par%ellmax,iellp,-iemmp)
-                                curralmE2star = almE2(:,ind)*(-1)**(-iemmp)
-                                curralmB2star = almB2(:,ind)*(-1)**(-iemmp)
+                                !ind is the same of map1
+                                curralmE2star = almE2(:,ind)*m1_to_memmp
+                                curralmB2star = almB2(:,ind)*m1_to_memmp
                              endif
                              ! F_XY already divided by clEEobs(l) or clBBobs(l)
                              almalpha2(:,indLM) = almalpha2(:,indLM) + factor * &
@@ -564,8 +566,6 @@ program EB_estimator
                           endif
                        endif
                     enddo
-                    !$omp end do 
-                    !$omp end parallel
                     deallocate(csi)
                  enddo
                  deallocate(wig2,wigall,F_EB1,F_BE1)

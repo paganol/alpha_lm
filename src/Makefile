@@ -66,6 +66,3 @@ EB_estimator : $(OBJFILES)
 
 clean :
 	rm -f *.o *.mod ../EB_estimator
-
-
-
