@@ -9,6 +9,7 @@ program EB_estimator
   use driver
   use utils
   use wigner 
+  use omp_lib
 !  use wigner1
   
   implicit none
@@ -20,8 +21,10 @@ program EB_estimator
   integer :: ellpminall,ellpmaxall,usedellpmax
   integer :: isim,Lcount,iL,nele,elementcount
   integer :: iemm, iM, iemmp
+  integer :: nselectedellp,isel
   integer(i8b) :: npix
   logical :: emmppos,apply_mask1=.false.,apply_mask2=.false.
+  integer :: selectedellp(2000)
   real(dp), allocatable, dimension(:) :: one_o_var1,red_one_o_var1,one_o_var2,red_one_o_var2,wig2,wigall,csi
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
@@ -527,45 +530,68 @@ program EB_estimator
 
                     m1_to_memmp=(-1)**(-iemmp) 
 
+                    nselectedellp = 0
                     do iellp = max(ellpminall,ellpmin,Par%ellmin,iell),min(ellpmaxall,usedellpmax)
                        if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (csi(iellp) .ne. 0.0d0)) then
-                          if (iellp .eq. iell) then
-                             factor = 0.5 * csi(iellp)
-                          else
-                             factor = csi(iellp)
-                          endif
+                          nselectedellp = nselectedellp + 1
+                          selectedellp(nselectedellp) = iellp
+                       endif                        
+                    enddo
 
+!!!                    !$omp parallel do private(isel,iellp,factor,curralmE1star,curralmB1star,curralmE2star,curralmB2star, ind)
+!, reduction(+:almalpha1(:,indLM)), reduction(+:almalpha2(:,indLM))
+                    do isel =1,nselectedellp
+                       iellp = selectedellp(isel)
+                       if (iellp .eq. iell) then
+                          factor = 0.5 * csi(iellp)
+                       else
+                          factor = csi(iellp)
+                       endif
+
+                       if (emmppos) then
+                          ind = lm2index(Par%ellmax,iellp,iemmp)
+                          curralmE1star = conjg(almE1(:,ind))
+                          curralmB1star = conjg(almB1(:,ind))
+                       else
+                          ind = lm2index(Par%ellmax,iellp,-iemmp)
+                          curralmE1star = almE1(:,ind)*m1_to_memmp
+                          curralmB1star = almB1(:,ind)*m1_to_memmp
+                       endif
+                       !$omp parallel do private(isim)
+                       do isim=1,Par%nsims
+                          almalpha1(isim,indLM) = almalpha1(isim,indLM) + factor * &
+                          (F_EB1(iellp) * curralmE1(isim) * curralmB1star(isim) / clBBobs1(iellp) + &
+                           F_BE1(iellp) * curralmB1(isim) * curralmE1star(isim) / clEEobs1(iellp))
+                       enddo           
+                       !$omp end parallel do
+                       ! F_XY already divided by clEEobs(l) or clBBobs(l)
+                       !almalpha1(:,indLM) = almalpha1(:,indLM) + factor * &
+                       !   (F_EB1(iellp) * curralmE1 * curralmB1star / clBBobs1(iellp) + &
+                       !    F_BE1(iellp) * curralmB1 * curralmE1star / clEEobs1(iellp))
+                       if (Par%do_cross) then
                           if (emmppos) then
-                             ind = lm2index(Par%ellmax,iellp,iemmp)
-                             curralmE1star = conjg(almE1(:,ind))
-                             curralmB1star = conjg(almB1(:,ind))
+                             !ind is the same of map1
+                             curralmE2star = conjg(almE2(:,ind))
+                             curralmB2star = conjg(almB2(:,ind))
                           else
-                             ind = lm2index(Par%ellmax,iellp,-iemmp)
-                             curralmE1star = almE1(:,ind)*m1_to_memmp
-                             curralmB1star = almB1(:,ind)*m1_to_memmp
+                             !ind is the same of map1
+                             curralmE2star = almE2(:,ind)*m1_to_memmp
+                             curralmB2star = almB2(:,ind)*m1_to_memmp
                           endif
+                          !$omp parallel do private(isim)
+                          do isim=1,Par%nsims
+                             almalpha2(isim,indLM) = almalpha2(isim,indLM) + factor * &
+                             (F_EB2(iellp) * curralmE2(isim) * curralmB2star(isim) /clBBobs2(iellp) + &
+                              F_BE2(iellp) * curralmB2(isim) * curralmE2star(isim) / clEEobs2(iellp)) 
+                          enddo
+                          !$omp end parallel do
                           ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                          almalpha1(:,indLM) = almalpha1(:,indLM) + factor * &
-                             (F_EB1(iellp) * curralmE1 * curralmB1star / clBBobs1(iellp) + &
-                              F_BE1(iellp) * curralmB1 * curralmE1star / clEEobs1(iellp))
-
-                          if (Par%do_cross) then
-                             if (emmppos) then
-                                !ind is the same of map1
-                                curralmE2star = conjg(almE2(:,ind))
-                                curralmB2star = conjg(almB2(:,ind))
-                             else
-                                !ind is the same of map1
-                                curralmE2star = almE2(:,ind)*m1_to_memmp
-                                curralmB2star = almB2(:,ind)*m1_to_memmp
-                             endif
-                             ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                             almalpha2(:,indLM) = almalpha2(:,indLM) + factor * &
-                                (F_EB2(iellp) * curralmE2 * curralmB2star / clBBobs2(iellp) + &
-                                 F_BE2(iellp) * curralmB2 * curralmE2star / clEEobs2(iellp)) 
-                          endif
+!                          almalpha2(:,indLM) = almalpha2(:,indLM) + factor * &
+!                             (F_EB2(iellp) * curralmE2 * curralmB2star / clBBobs2(iellp) + &
+!                              F_BE2(iellp) * curralmB2 * curralmE2star / clEEobs2(iellp)) 
                        endif
                     enddo
+!!!                    !$omp end parallel do
                     deallocate(csi)
                  enddo
                  deallocate(wig2,wigall,F_EB1,F_BE1)
