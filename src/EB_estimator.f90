@@ -18,7 +18,7 @@ program EB_estimator
   integer :: indmax,indLMmax,ind,indLM,LM(2)
   integer :: iellp,ellpmin,ellpmax, iell
   integer :: ellpminall,ellpmaxall,usedellpmax
-  integer :: isim,Lcount,iL,nele,elementcount
+  integer :: isim,Lcount,iL,nele,elementcount,procelementcount
   integer :: iemm, iM, iemmp
   integer(i8b) :: npix
   logical :: emmppos,apply_mask1=.false.,apply_mask2=.false.
@@ -29,15 +29,17 @@ program EB_estimator
   complex(spc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
   complex(spc), allocatable, dimension(:,:,:) :: alm1,alm2
   complex(spc), allocatable, dimension(:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
+  complex(spc), allocatable, dimension(:,:) :: procalmalpha1,procalmalpha2
   complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
-  real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2,mask1,mask2
+  real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2
+  real(sp), allocatable,dimension(:,:) :: mask1,mask2
   real(dp) :: factor,Gl,norm,fsky1,fsky2,m1_to_memm,m1_to_memmp 
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct
   character(len=FILENAMELEN) :: mapname
   character(len=16) :: simstr
   character(len=1) :: strzerofill
-  integer :: IER
+!  integer :: IER
   
   !input parameters
   Type(Params) :: Par
@@ -79,14 +81,14 @@ program EB_estimator
      allocate(clBBobs1(0:Par%ellmax))
      clEEobs1 = clfid(:,myEE) * wl1(:,myEE) + nl1(:,1)
      clBBobs1 = clfid(:,myBB) * wl1(:,myBB) + nl1(:,2)
-     deallocate(nl1)
+     deallocate(nl1,wl1)
  
      if (Par%do_cross) then
         allocate(clEEobs2(0:Par%ellmax))
         allocate(clBBobs2(0:Par%ellmax))
         clEEobs2 = clfid(:,myEE) * wl2(:,myEE) + nl2(:,1)
         clBBobs2 = clfid(:,myBB) * wl2(:,myBB) + nl2(:,2)
-        deallocate(nl2)
+        deallocate(nl2,wl2)
      endif
    
      deallocate(clfid)
@@ -109,27 +111,23 @@ program EB_estimator
   call mpi_bcast(Par%compute_biasalpha,1,mpi_logical,0,mpi_comm_world,mpierr)
   call mpi_bcast(Par%do_cross,1,mpi_logical,0,mpi_comm_world,mpierr)
   
-  nele = Par%ellmax+1
-
   if (myid .ne. 0) then
      allocate(clEEfid(0:Par%ellmax),clEEobs1(0:Par%ellmax),clBBobs1(0:Par%ellmax))
-     allocate(bl1(0:Par%ellmax,3),wl1(0:Par%ellmax,6))
+     allocate(bl1(0:Par%ellmax,3))
   endif
   call mpi_bcast(clEEfid,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clEEobs1,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(clBBobs1,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
   call mpi_bcast(bl1,3*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
-  call mpi_bcast(wl1,6*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
 
   if (Par%do_cross) then
      if (myid .ne. 0) then
         allocate(clEEobs2(0:Par%ellmax),clBBobs2(0:Par%ellmax))
-        allocate(bl2(0:Par%ellmax,3),wl2(0:Par%ellmax,6))
+        allocate(bl2(0:Par%ellmax,3))
      endif
      call mpi_bcast(clEEobs2,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
      call mpi_bcast(clBBobs2,Par%ellmax+1,mpi_real8,0,mpi_comm_world, mpierr)
      call mpi_bcast(bl2,3*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
-     call mpi_bcast(wl2,6*(Par%ellmax+1),mpi_real8,0,mpi_comm_world, mpierr)
   endif
   
   call mpi_barrier(mpi_comm_world, mpierr)
@@ -149,9 +147,14 @@ program EB_estimator
      nele = indmax+1
      allocate(almE1(Par%nsims,0:indmax))
      allocate(almB1(Par%nsims,0:indmax))     
+     almE1=0
+     almB1=0
+     
      if (Par%do_cross) then
         allocate(almE2(Par%nsims,0:indmax))
         allocate(almB2(Par%nsims,0:indmax))
+        almE2=0
+        almB2=0
      endif
 
      !mask
@@ -189,8 +192,8 @@ program EB_estimator
            endif
         endif
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(almE1,Par%nsims*nele,mpi_complex,0,mpi_comm_world, mpierr)
-        call mpi_bcast(almB1,Par%nsims*nele,mpi_complex,0,mpi_comm_world, mpierr)       
+        call mpi_bcast(almE1,nele,mpi_complex,0,mpi_comm_world, mpierr)
+        call mpi_bcast(almB1,nele,mpi_complex,0,mpi_comm_world, mpierr)       
         if (Par%do_cross) then
            if (myid .eq. 0) then
               if (apply_mask2) then
@@ -200,12 +203,10 @@ program EB_estimator
               endif
            endif
            call mpi_barrier(mpi_comm_world, mpierr)
-           call mpi_bcast(almE2,Par%nsims*nele,mpi_complex,0,mpi_comm_world,mpierr)
-           call mpi_bcast(almB2,Par%nsims*nele,mpi_complex,0,mpi_comm_world,mpierr)
+           call mpi_bcast(almE2,nele,mpi_complex,0,mpi_comm_world,mpierr)
+           call mpi_bcast(almB2,nele,mpi_complex,0,mpi_comm_world,mpierr)
         endif
      else
-        almE1=0
-        almB1=0
         ct=1
         write(strzerofill,fmt='(i1)') Par%zerofill
         do isim=Par%ssim,Par%ssim+Par%nsims-1
@@ -228,8 +229,6 @@ program EB_estimator
         call mpi_barrier(mpi_comm_world, mpierr)     
         
         if (Par%do_cross) then
-           almE2=0
-           almB2=0
            ct=1
            do isim=Par%ssim,Par%ssim+Par%nsims-1
               if (myid .eq. mod(ct-1,nproc)) then
@@ -252,14 +251,13 @@ program EB_estimator
   endif
 
   if (Par%compute_biasalpha) then
-     nele=Par%ellmax+1
      if (Par%do_cross) then
         allocate(clEEmap12(Par%nsims,0:Par%ellmax))
         allocate(clBBmap12(Par%nsims,0:Par%ellmax))
         if (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,Par%ellmax,clEEmap12,clBBmap12,almE2,almB2)
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(clEEmap12,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
-        call mpi_bcast(clBBmap12,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_bcast(clEEmap12,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_bcast(clBBmap12,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
         if (apply_mask1) then
            clEEmap12 = clEEmap12 / sqrt(fsky1)
            clBBmap12 = clBBmap12 / sqrt(fsky1)
@@ -273,8 +271,8 @@ program EB_estimator
         allocate(clBBmap1(Par%nsims,0:Par%ellmax))
         if  (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,Par%ellmax,clEEmap1,clBBmap1)
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(clEEmap1,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
-        call mpi_bcast(clBBmap1,Par%nsims*nele,mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_bcast(clEEmap1,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_bcast(clBBmap1,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
         if (apply_mask1) then
            clEEmap1 = clEEmap1 / fsky1
            clBBmap1 = clBBmap1 / fsky1
@@ -455,21 +453,38 @@ program EB_estimator
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computing alpha_LM'
       
      call mpi_barrier(mpi_comm_world, mpierr)
-     allocate(almalpha1(1:Par%nsims,0:indLMmax))
-     almalpha1=0
-     allocate(curralmE1(Par%nsims),curralmB1(Par%nsims),curralmE1star(Par%nsims),curralmB1star(Par%nsims))
+
+     !! count the alms alpha and allocate local variables 
+     elementcount = 0
+     procelementcount = 0 
+     do iL=Par%Lmin,Par%Lmax
+        do iM=0,iL
+           if (myid .eq. mod(elementcount,nproc)) then
+              procelementcount = procelementcount + 1
+           endif
+           elementcount = elementcount + 1
+        enddo
+     enddo
+     allocate(procalmalpha1(1:Par%nsims,procelementcount))
+     procalmalpha1 = 0
 
      if (Par%do_cross) then
-        allocate(almalpha2(1:Par%nsims,0:indLMmax))
-        almalpha2=0
-        allocate(curralmE2(Par%nsims),curralmB2(Par%nsims),curralmE2star(Par%nsims),curralmB2star(Par%nsims))
+        allocate(procalmalpha2(1:Par%nsims,procelementcount))
+        procalmalpha2=0
      endif
+
+     allocate(curralmE1(Par%nsims),curralmB1(Par%nsims),curralmE1star(Par%nsims),curralmB1star(Par%nsims))
+     if (Par%do_cross) allocate(curralmE2(Par%nsims),curralmB2(Par%nsims),curralmE2star(Par%nsims),curralmB2star(Par%nsims))
+
+     call mpi_barrier(mpi_comm_world, mpierr)
    
      elementcount = 0
+     procelementcount = 0
      do iL=Par%Lmin,Par%Lmax
         do iM=0,iL
            if (myid .eq. mod(elementcount,nproc)) then
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' doing L=', iL, ' and M=',iM
+              procelementcount = procelementcount + 1
               indLM = lm2index(Par%Lmax,iL,iM)
               !loop ell
               do iell=Par%ellmin,Par%ellmax
@@ -485,8 +500,8 @@ program EB_estimator
                     F_EB2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(ellpmin:usedellpmax,myE) / clEEobs2(iell) 
                     F_BE2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl2(ellpmin:usedellpmax,myE)*bl2(iell,myE) / clBBobs2(iell)
                  endif
+                 deallocate(wig2)
                  norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
-
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
@@ -545,7 +560,7 @@ program EB_estimator
                              curralmB1star = almB1(:,ind)*m1_to_memmp
                           endif
                           ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                          almalpha1(:,indLM) = almalpha1(:,indLM) + factor * &
+                          procalmalpha1(:,procelementcount) = procalmalpha1(:,procelementcount) + factor * &
                              (F_EB1(iellp) * curralmE1 * curralmB1star / clBBobs1(iellp) + &
                               F_BE1(iellp) * curralmB1 * curralmE1star / clEEobs1(iellp))
 
@@ -560,7 +575,7 @@ program EB_estimator
                                 curralmB2star = almB2(:,ind)*m1_to_memmp
                              endif
                              ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                             almalpha2(:,indLM) = almalpha2(:,indLM) + factor * &
+                             procalmalpha2(:,procelementcount) = procalmalpha2(:,procelementcount) + factor * &
                                 (F_EB2(iellp) * curralmE2 * curralmB2star / clBBobs2(iellp) + &
                                  F_BE2(iellp) * curralmB2 * curralmE2star / clEEobs2(iellp)) 
                           endif
@@ -568,7 +583,7 @@ program EB_estimator
                     enddo
                     deallocate(csi)
                  enddo
-                 deallocate(wig2,wigall,F_EB1,F_BE1)
+                 deallocate(wigall,F_EB1,F_BE1)
                  if (Par%do_cross) deallocate(F_EB2,F_BE2)
               enddo
            endif
@@ -580,6 +595,28 @@ program EB_estimator
      deallocate(almE1,almB1)
      if (Par%do_cross) deallocate(almE2,almB2) 
   
+     call mpi_barrier(mpi_comm_world, mpierr)
+
+     !! reorder the alms alpha
+     allocate(almalpha1(1:Par%nsims,0:indLMmax))
+     if (Par%do_cross) allocate(almalpha2(1:Par%nsims,0:indLMmax))
+     elementcount = 0
+     procelementcount = 0
+     do iL=Par%Lmin,Par%Lmax
+        do iM=0,iL
+           if (myid .eq. mod(elementcount,nproc)) then
+              procelementcount = procelementcount + 1
+              indLM = lm2index(Par%Lmax,iL,iM)
+              almalpha1(:,indLM) = procalmalpha1(:,procelementcount)
+              if (Par%do_cross) almalpha2(:,indLM) = procalmalpha2(:,procelementcount) 
+           endif
+           elementcount = elementcount + 1
+        enddo
+     enddo
+     
+     deallocate(procalmalpha1)
+     if (Par%do_cross) deallocate(procalmalpha2)
+
      call mpi_barrier(mpi_comm_world, mpierr)
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computation of alphalm done'
      if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock( t3, clock_rate, clock_max )
@@ -656,7 +693,10 @@ program EB_estimator
      if (myid .eq. 0) deallocate(red_one_o_var1)
      if ((myid .eq. 0) .and. Par%do_cross) deallocate(red_one_o_var2)
   endif
-  
+
+  deallocate(clEEfid,clEEobs1,clBBobs1)
+  if (Par%do_cross) deallocate(clEEobs2,clBBobs2)  
+
   call mpi_barrier(mpi_comm_world, mpierr)
   
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock(t4, clock_rate, clock_max)

@@ -42,7 +42,7 @@ contains
     character(len=FILENAMELEN) :: filename
     integer(i4b) :: nmaps
     integer(i8b) :: npix
-    real(dp),intent(out),dimension(0:,1:) :: mask
+    real(sp),intent(out),dimension(0:,1:) :: mask
     real(dp),allocatable,dimension(:,:) :: maps
     real(dp),intent(out) :: fsky
 
@@ -72,9 +72,9 @@ contains
     integer(i4b) :: lmax,nside,iter,sim
     integer(i8b) :: npix
     integer :: imax,ind,lm(2)
-    real(dp),allocatable,dimension(:,:) :: maps
-    real(dp),optional,dimension(0:,1:) :: mask
-    complex(dpc),allocatable,dimension(:,:,:) :: alms
+    real(sp),allocatable,dimension(:,:) :: maps
+    real(sp),optional,dimension(0:,1:) :: mask
+    complex(spc),allocatable,dimension(:,:,:) :: alms
     complex(spc),dimension(1:,0:) :: almE,almB
 
     imax=size(almE,dim=2)-1
