@@ -32,8 +32,6 @@ Lmax = 500
 
 lmax_gen = lmax
 
-lmax_beam = lmax+Lmax
-
 #files
 beamfile = rootindir+'beam_'+namerun+'.fits'
 fiducialfile = rootindir+'ffp10_lensedCls.dat'
@@ -58,10 +56,10 @@ else:
 sigmafile = rootoutdir+'sigma_'+namerun+'.txt'
 
 #beam
-bl = hp.gauss_beam(np.deg2rad(fwhm/60.),lmax_beam,pol=True)
-wpix = hp.pixwin(nside,pol=True,lmax=lmax_beam)
+bl = hp.gauss_beam(np.deg2rad(fwhm/60.),lmax_gen,pol=True)
+wpix = hp.pixwin(nside,pol=True,lmax=lmax_gen)
 
-beam = np.empty((lmax_beam+1,3))
+beam = np.empty((lmax_gen+1,3))
 
 beam[:,0] = bl[:,0]*wpix[0]
 beam[:,1] = bl[:,1]*wpix[1]

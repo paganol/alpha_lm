@@ -13,8 +13,8 @@ contains
   subroutine make_noise(filename,nl,noiseE,noiseB,feedback)
     character(len=FILENAMELEN) :: filename
     real(dp),dimension(0:,1:) , intent(inout) :: nl
-    real(dp) :: noiseE,noiseB
-    integer :: lmax,myunit,ll,l,feedback
+    real(dp) :: noiseE,noiseB,fakereal
+    integer :: lmax,myunit,ll,l,lstart,feedback
     character(len=2048) :: fakestring
     
     if (len(trim(filename)) .gt. 0) then
@@ -25,11 +25,14 @@ contains
        open(newunit=myunit,file=trim(filename),status='old',form='formatted')
        read(myunit,'(a)') fakestring
        if (scan(fakestring,'#') .eq. 0) rewind(myunit)
-       do l=2,lmax
+
+       read(myunit,*) lstart,noiseE,noiseB
+       nl(lstart,1) = noiseE
+       nl(lstart,2) = noiseB
+       do l=lstart+1,lmax
           read(myunit,*) ll,nl(l,1),nl(l,2)
        enddo
        close(myunit)
-       
     else
        if (feedback .gt. 1) write(0,*) 'Building noise spectra'
        nl(:,1) = (noiseE*DEG2RAD/60.0)**2
