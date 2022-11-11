@@ -86,6 +86,7 @@ contains
     npix = getsize_fits(trim(filename),nside=nside)
     allocate(maps(0:npix-1,1:3))
     call input_map(trim(filename),maps, npix, 3)
+ 
     if (present(mask)) then
        call map2alm_iterative(nside, lmax, lmax, iter, maps, alms,mask=mask)
     else
@@ -101,6 +102,30 @@ contains
     deallocate(maps,alms)
 
   end subroutine read_map_and_compute_alms
+
+  subroutine read_precomputed_alms(filename,almE,almB,sim)
+    character(len=FILENAMELEN) :: filename
+    integer(i4b) :: sim
+    integer(i4b) :: ind,imax,nalm
+    real(dp),allocatable,dimension(:,:,:) :: alms
+    complex(spc),dimension(1:,0:) :: almE,almB
+    character(len=80), dimension(80,2) :: header
+
+    nalm = getsize_fits(trim(filename))
+    allocate(alms(1:nalm,1:4,1:2))
+    
+    call fits2alms(trim(filename),nalm,alms,3,header,80,2)
+
+    imax=size(almE,dim=2)-1
+
+    do ind=0,imax
+       almE(sim,ind) = cmplx(alms(ind+1,3,1),alms(ind+1,4,1),spc)
+       almB(sim,ind) = cmplx(alms(ind+1,3,2),alms(ind+1,4,2),spc) 
+    enddo
+
+    deallocate(alms)
+
+  end subroutine read_precomputed_alms
    
   subroutine read_cl(filename,cl)
     real(dp),dimension(0:,1:) :: cl

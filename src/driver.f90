@@ -64,6 +64,7 @@ contains
     endif
 
     if (P%compute_alphalm .or. P%compute_biasalpha) then
+       P%read_precomputed_alms=parse_lgt(handle,'read_precomputed_alms',.false.)
        P%inmapfile1=parse_string(handle,'input_map1','inputs/map1.fits')
        P%inmaskfile1=parse_string(handle,'input_mask1','')
        if (P%do_cross) then

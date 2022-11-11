@@ -142,6 +142,7 @@ program EB_estimator
         call mpi_bcast(Par%inmapfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
         call mpi_bcast(Par%endnamemap2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      endif
+     call mpi_bcast(Par%read_precomputed_alms,1,mpi_logical,0,mpi_comm_world,mpierr)
 
      indmax = lm2index(Par%ellmax,Par%ellmax,Par%ellmax) 
      nele = indmax+1
@@ -160,7 +161,7 @@ program EB_estimator
      !mask
      if (myid .eq. 0) then
         if (Par%inmaskfile1 .ne. '') then
-           if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read mask 1'
+           if (Par%feedback .gt. 1) write(*,*) 'Read mask 1'
            apply_mask1 = .true.
            npix = getsize_fits(trim(Par%inmaskfile1))
            allocate(mask1(0:npix-1,1:3)) 
@@ -168,7 +169,7 @@ program EB_estimator
            if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'fsky mask 1: ',fsky1
         endif
         if (Par%do_cross .and. (Par%inmaskfile2 .ne. '')) then
-           if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read mask 2'
+           if (Par%feedback .gt. 1) write(*,*) 'Read mask 2'
            apply_mask2 = .true.
            npix = getsize_fits(trim(Par%inmaskfile2))
            allocate(mask2(0:npix-1,1:3))     
@@ -176,19 +177,37 @@ program EB_estimator
            if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'fsky mask2: ',fsky2
         endif
      endif
-     
+
+     call mpi_barrier(mpi_comm_world, mpierr)  
      call mpi_bcast(apply_mask1,1,mpi_logical,0,mpi_comm_world,mpierr)
-     if (apply_mask1) call mpi_bcast(fsky1,1,mpi_real8,0,mpi_comm_world,mpierr)
-     if (Par%do_cross) call mpi_bcast(apply_mask2,1,mpi_logical,0,mpi_comm_world,mpierr)
-     if (Par%do_cross .and. apply_mask2) call mpi_bcast(fsky2,1,mpi_real8,0,mpi_comm_world, mpierr)
+     if (apply_mask1) then
+        call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
+        if (myid .ne. 0) allocate(mask1(0:npix-1,1:3))
+        call mpi_bcast(mask1,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+        call mpi_bcast(fsky1,1,mpi_real8,0,mpi_comm_world,mpierr)
+     endif
+     if (Par%do_cross) then
+        call mpi_bcast(apply_mask2,1,mpi_logical,0,mpi_comm_world,mpierr)
+        if (apply_mask2) then
+           call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
+           if (myid .ne. 0) allocate(mask2(0:npix-1,1:3))
+           call mpi_bcast(mask2,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+           call mpi_bcast(fsky2,1,mpi_real8,0,mpi_comm_world,mpierr)
+        endif
+     endif
+     call mpi_barrier(mpi_comm_world, mpierr)
 
      if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read maps'
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
-           if (apply_mask1) then
-              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1,mask=mask1)
+           if (.not. Par%read_precomputed_alms) then
+              if (apply_mask1) then
+                 call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1,mask=mask1)
+              else
+                 call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1)
+              endif
            else
-              call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1)
+              call read_precomputed_alms(Par%inmapfile1,almE1,almB1,1)
            endif
         endif
         call mpi_barrier(mpi_comm_world, mpierr)
@@ -196,10 +215,14 @@ program EB_estimator
         call mpi_bcast(almB1,nele,mpi_complex,0,mpi_comm_world, mpierr)       
         if (Par%do_cross) then
            if (myid .eq. 0) then
-              if (apply_mask2) then
-                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1,mask=mask2)
+              if (.not. Par%read_precomputed_alms) then
+                 if (apply_mask2) then
+                    call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1,mask=mask2)
+                 else
+                    call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1)
+                 endif
               else
-                 call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1)
+                 call read_precomputed_alms(Par%inmapfile2,almE2,almB2,1)
               endif
            endif
            call mpi_barrier(mpi_comm_world, mpierr)
@@ -214,10 +237,14 @@ program EB_estimator
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               mapname=trim(Par%inmapfile1)//trim(simstr)//trim(Par%endnamemap1)
-              if (apply_mask1) then
-                 call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct,mask=mask1)
+              if (.not. Par%read_precomputed_alms) then
+                 if (apply_mask1) then
+                    call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct,mask=mask1)
+                 else
+                    call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct)
+                 endif
               else
-                 call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct)
+                 call read_precomputed_alms(mapname,almE1,almB1,ct)
               endif
            endif
            ct=ct+1
@@ -235,10 +262,14 @@ program EB_estimator
                  if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  mapname=trim(Par%inmapfile2)//trim(simstr)//trim(Par%endnamemap2)
-                 if (apply_mask2) then
-                    call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct,mask=mask2)
+                 if (.not. Par%read_precomputed_alms) then
+                    if (apply_mask2) then
+                       call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct,mask=mask2)
+                    else
+                       call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct)
+                    endif
                  else
-                    call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct)
+                    call read_precomputed_alms(mapname,almE2,almB2,ct)
                  endif
               endif
               ct=ct+1
@@ -248,6 +279,8 @@ program EB_estimator
            call mpi_allreduce(mpi_in_place,almB2,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
         endif
      endif
+     if (apply_mask1) deallocate(mask1)
+     if (apply_mask2) deallocate(mask2)
   endif
 
   if (Par%compute_biasalpha) then

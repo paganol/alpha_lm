@@ -19,7 +19,7 @@ module settings
      character(len=FILENAMELEN) :: inmapfile1, inclfile, outalmfile1,outsigmafile1,outsigmafile2,outclfile
      character(len=FILENAMELEN) :: inmapfile2, outalmfile2
      character(len=FILENAMELEN) :: outbiasfile, endnamebias
-     logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias,do_cross
+     logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias, do_cross, read_precomputed_alms
      real(dp) :: noiseE1,noiseB1,noiseE2,noiseB2
   end Type Params
 
