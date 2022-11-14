@@ -50,7 +50,7 @@ INCLUDES = -I. -I/usr/local/include -I$(HEALPIX)/include -I/usr/local/Cellar/cfi
 LIBS = -L$(HEALPIX)/lib -lhealpix  -L/usr/local/Cellar/cfitsio/4.1.0/lib -lcfitsio
 endif
 
-OBJFILES = d1mach.o settings.o driver.o utils.o wigner.o wigner1.o EB_estimator.o 
+OBJFILES = settings.o driver.o utils.o wigner.o EB_estimator.o 
 
 all : EB_estimator
 
