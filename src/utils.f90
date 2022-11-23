@@ -13,7 +13,7 @@ contains
   subroutine make_noise(filename,nl,noiseE,noiseB,feedback)
     character(len=FILENAMELEN) :: filename
     real(dp),dimension(0:,1:) , intent(inout) :: nl
-    real(dp) :: noiseE,noiseB,fakereal
+    real(dp) :: noiseE,noiseB
     integer :: lmax,myunit,ll,l,lstart,feedback
     character(len=2048) :: fakestring
     

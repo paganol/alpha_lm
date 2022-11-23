@@ -11,8 +11,7 @@ rootparamdir = rootglobal+'params/'
 rootslurmdir = rootglobal+'slurms/'
 codepath = rootcode+'EB_estimator'
 
-
-namerun = 'commander_ns2048_Lmax1500_lmin0100_lmax1500'
+read_alms = True
 
 nside = 2048
 fwhm = 5.0
@@ -22,11 +21,13 @@ nsimsnoise = 300
 nsims = 301
 start_sim = 0
 
-lmin = 100
-lmax = 1500
+lmin = 50
+lmax = 750
 
 Lmin = 0
-Lmax = 1500
+Lmax = 500
+
+namerun = 'commander_ns2048_Lmin'+str(Lmin).zfill(4)+'_Lmax'+str(Lmax).zfill(4)+'_lmin'+str(lmin).zfill(4)+'_lmax'+str(lmax).zfill(4)+'_maskstd'
 
 lmax_beam = lmax
 
@@ -37,9 +38,16 @@ paramfile = rootparamdir+'params_'+namerun+'.ini'
 slurmfile = rootslurmdir+'slurm_'+namerun+'.sl' 
 
 mask_file = '/marconi_work/INF22_indark/mbortola/masks/COM_Mask_CMB-common-HM-Misspix-Mask-Pol_2048_R3.00.fits'
-   
-mapfile1 = rootinmaps+'dx12_v3_commander_cmb_noise_hm1_mc_'
-mapfile2 = rootinmaps+'dx12_v3_commander_cmb_noise_hm2_mc_'
+
+if read_alms:   
+    mapfile1 = rootinmaps+'dx12_v3_commander_cmb_noise_hm1_mc_alm_lmax'+str(lmax).zfill(4)+'_maskstd_'
+    mapfile2 = rootinmaps+'dx12_v3_commander_cmb_noise_hm2_mc_alm_lmax'+str(lmax).zfill(4)+'_maskstd_'
+    par_read_alms = 'T'
+else:
+    mapfile1 = rootinmaps+'dx12_v3_commander_cmb_noise_hm1_mc_'
+    mapfile2 = rootinmaps+'dx12_v3_commander_cmb_noise_hm2_mc_'
+    par_read_alms = 'F'
+
 suffix_map1 = '.fits'
 suffix_map2 = '.fits'
  
@@ -122,6 +130,8 @@ noise_file2 = {noisefile2}
 input_mask1 = {mask_file}
 input_mask2 = {mask_file}
 
+read_precomputed_alms = {par_read_alms}
+
 input_map1 = {mapfile1}
 input_map2 = {mapfile2}
 suffix_map1 = {suffix_map1}
@@ -146,8 +156,8 @@ f.write(params)
 f.close()
 
 slurm = """#!/bin/bash -l
-#SBATCH -p skl_usr_prod
-#SBATCH --nodes=20
+#SBATCH -p skl_usr_dbg
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=48
 #SBATCH --cpus-per-task=1
 #SBATCH -t 0:30:00

@@ -181,17 +181,25 @@ program EB_estimator
      call mpi_barrier(mpi_comm_world, mpierr)  
      call mpi_bcast(apply_mask1,1,mpi_logical,0,mpi_comm_world,mpierr)
      if (apply_mask1) then
-        call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
-        if (myid .ne. 0) allocate(mask1(0:npix-1,1:3))
-        call mpi_bcast(mask1,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+        if (.not. Par%read_precomputed_alms) then
+           call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
+           if (myid .ne. 0) allocate(mask1(0:npix-1,1:3))
+           call mpi_bcast(mask1,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+        else
+           if (myid .eq. 0) deallocate(mask1)
+        endif
         call mpi_bcast(fsky1,1,mpi_real8,0,mpi_comm_world,mpierr)
      endif
      if (Par%do_cross) then
         call mpi_bcast(apply_mask2,1,mpi_logical,0,mpi_comm_world,mpierr)
         if (apply_mask2) then
-           call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
-           if (myid .ne. 0) allocate(mask2(0:npix-1,1:3))
-           call mpi_bcast(mask2,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+           if (.not. Par%read_precomputed_alms) then
+              call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
+              if (myid .ne. 0) allocate(mask2(0:npix-1,1:3))
+              call mpi_bcast(mask2,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+           else
+              if (myid .eq. 0) deallocate(mask2)
+           endif
            call mpi_bcast(fsky2,1,mpi_real8,0,mpi_comm_world,mpierr)
         endif
      endif
@@ -279,8 +287,8 @@ program EB_estimator
            call mpi_allreduce(mpi_in_place,almB2,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
         endif
      endif
-     if (apply_mask1) deallocate(mask1)
-     if (apply_mask2) deallocate(mask2)
+     if (apply_mask1 .and. (.not. Par%read_precomputed_alms)) deallocate(mask1)
+     if (apply_mask2 .and. (.not. Par%read_precomputed_alms)) deallocate(mask2)
   endif
 
   if (Par%compute_biasalpha) then
@@ -573,7 +581,7 @@ program EB_estimator
                     enddo
                     csi = csi * norm * (-1.0)**iemm
 
-                    m1_to_memmp=(-1)**(-iemmp) 
+                    m1_to_memmp=(-1.0)**(-iemmp) 
 
                     do iellp = max(ellpminall,ellpmin,Par%ellmin,iell),min(ellpmaxall,usedellpmax)
                        if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (csi(iellp) .ne. 0.0d0)) then
