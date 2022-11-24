@@ -22,7 +22,7 @@ program EB_estimator
   integer :: iemm, iM, iemmp
   integer(i8b) :: npix
   logical :: emmppos,apply_mask1=.false.,apply_mask2=.false.
-  real(dp), allocatable, dimension(:) :: one_o_var1,red_one_o_var1,one_o_var2,red_one_o_var2,wig2,wigall,csi
+  real(dp), allocatable, dimension(:) :: one_o_var1,red_one_o_var1,one_o_var2,red_one_o_var2,wig2,wigall
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
   real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha,red_biasalpha
@@ -546,7 +546,7 @@ program EB_estimator
                  !loop emm
                  do iemm=-iell,iell
                     iemmp = iemm-iM
-                    m1_to_memm=(-1)**(-iemm)
+                    m1_to_memm=(-1.0)**(-iemm)
                     call Wigner3j(wigall, ellpminall, ellpmaxall, iell, iL, iemmp , -iemm, iM)
 !                    call DRC3JJ(real(iell,kind=dp), real(iL,kind=dp), real(-iemm,kind=dp), real(iM,kind=dp), &
 !                           ellpminall, ellpmaxall, wigall, iL+iell+1,IER)
@@ -574,21 +574,15 @@ program EB_estimator
 
                     emmppos = .true.
                     if (iemmp .lt. 0) emmppos=.false.
-
-                    allocate(csi(ellpminall:ellpmaxall))
-                    do iellp=ellpminall,ellpmaxall
-                       csi(iellp) = sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
-                    enddo
-                    csi = csi * norm * (-1.0)**iemm
-
+                    
                     m1_to_memmp=(-1.0)**(-iemmp) 
 
                     do iellp = max(ellpminall,ellpmin,Par%ellmin,iell),min(ellpmaxall,usedellpmax)
-                       if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (csi(iellp) .ne. 0.0d0)) then
+                       if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (wigall(iellp-ellpminall+1) .ne. 0.0d0)) then
                           if (iellp .eq. iell) then
-                             factor = 0.5 * csi(iellp)
+                             factor = 0.5 * norm * (-1.0)**iemm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
                           else
-                             factor = csi(iellp)
+                             factor = norm * (-1.0)**iemm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
                           endif
 
                           if (emmppos) then
@@ -622,7 +616,6 @@ program EB_estimator
                           endif
                        endif
                     enddo
-                    deallocate(csi)
                  enddo
                  deallocate(wigall,F_EB1,F_BE1)
                  if (Par%do_cross) deallocate(F_EB2,F_BE2)
