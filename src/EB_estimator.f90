@@ -20,6 +20,7 @@ program EB_estimator
   integer :: ellpminall,ellpmaxall,usedellpmax
   integer :: isim,Lcount,iL,nele,elementcount,procelementcount
   integer :: iemm, iM, iemmp
+  integer :: selellpmin,selellpmax 
   integer(i8b) :: npix
   logical :: emmppos,apply_mask1=.false.,apply_mask2=.false.
   real(dp), allocatable, dimension(:) :: one_o_var1,red_one_o_var1,one_o_var2,red_one_o_var2,wig2,wigall
@@ -34,7 +35,7 @@ program EB_estimator
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
   real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2
   real(sp), allocatable,dimension(:,:) :: mask1,mask2
-  real(dp) :: factor,Gl,norm,fsky1,fsky2,m1_to_memm,m1_to_memmp 
+  real(dp) :: factor,Gl,norm,fsky1,fsky2,m1_to_emm,m1_to_memm,m1_to_memmp,abswigmax 
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct
   character(len=FILENAMELEN) :: mapname
   character(len=16) :: simstr
@@ -547,6 +548,8 @@ program EB_estimator
                  do iemm=-iell,iell
                     iemmp = iemm-iM
                     m1_to_memm=(-1.0)**(-iemm)
+                    m1_to_emm=(-1.0)**iemm
+
                     call Wigner3j(wigall, ellpminall, ellpmaxall, iell, iL, iemmp , -iemm, iM)
 !                    call DRC3JJ(real(iell,kind=dp), real(iL,kind=dp), real(-iemm,kind=dp), real(iM,kind=dp), &
 !                           ellpminall, ellpmaxall, wigall, iL+iell+1,IER)
@@ -577,12 +580,16 @@ program EB_estimator
                     
                     m1_to_memmp=(-1.0)**(-iemmp) 
 
-                    do iellp = max(ellpminall,ellpmin,Par%ellmin,iell),min(ellpmaxall,usedellpmax)
-                       if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (wigall(iellp-ellpminall+1) .ne. 0.0d0)) then
+                    selellpmin = max(ellpminall,ellpmin,Par%ellmin,iell)
+                    selellpmax = min(ellpmaxall,usedellpmax)
+                    abswigmax = maxval(abs(wigall(selellpmin-ellpminall+1:selellpmax-ellpminall+1)))
+                    
+                    do iellp = selellpmin,selellpmax
+                       if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (abs(wigall(iellp-ellpminall+1)) .gt. WIGRATIO*abswigmax)) then
                           if (iellp .eq. iell) then
-                             factor = 0.5 * norm * (-1.0)**iemm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
+                             factor = 0.5 * norm * m1_to_emm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
                           else
-                             factor = norm * (-1.0)**iemm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
+                             factor = norm * m1_to_emm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
                           endif
 
                           if (emmppos) then
