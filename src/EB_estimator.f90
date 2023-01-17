@@ -27,14 +27,13 @@ program EB_estimator
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
   real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha,red_biasalpha
-  complex(spc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
-  complex(spc), allocatable, dimension(:,:,:) :: alm1,alm2
-  complex(spc), allocatable, dimension(:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
-  complex(spc), allocatable, dimension(:,:) :: procalmalpha1,procalmalpha2
+  complex(dpc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
+  complex(dpc), allocatable, dimension(:,:,:) :: alm1,alm2
+  complex(dpc), allocatable, dimension(:,:) :: almalpha1,red_almalpha1,almalpha2,red_almalpha2
   complex(dpc), allocatable, dimension(:) :: curralmE1,curralmB1,curralmE1star,curralmB1star
   complex(dpc), allocatable, dimension(:) :: curralmE2,curralmB2,curralmE2star,curralmB2star
   real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2
-  real(sp), allocatable,dimension(:,:) :: mask1,mask2
+  real(dp), allocatable,dimension(:,:) :: mask1,mask2
   real(dp) :: factor,Gl,norm,fsky1,fsky2,m1_to_emm,m1_to_memm,m1_to_memmp,abswigmax 
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct
   character(len=FILENAMELEN) :: mapname
@@ -533,151 +532,25 @@ program EB_estimator
      
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
-           call compute_alphalm(almE1(1,:),almB1(1,:),clEE(1,:),Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
+           call compute_alphalm(almE1(1,:),almB1(1,:),clEEfid,Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
+           if (Par%do_cross) then
+              call compute_alphalm(almE2(1,:),almB2(1,:),clEEfid,Par%lmax,Par%ellmin,Par%ellmax,almalpha2)
+           endif
+           
         endif
      else
         ct=1
         do isim=Par%ssim,Par%ssim+Par%nsims-1
            if (myid .eq. mod(ct-1,nproc)) then
               simproc = floor(ct,nproc)
-              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),clEE(simproc,:),Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
-call
-compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:))
-        else
-           ct=1
-           do isim=Par%ssim,Par%ssim+Par%nsims-1
-              if (myid .eq. mod(ct-1,nproc)) then
-                 simproc = floor(ct,nproc)
-                 call
-compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:))
+              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),clEEfid,Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
+              if (Par%do_cross) then
+                 call compute_alphalm(almE2(simproc,:),almB2(simproc,:),clEEfid,Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
               endif
-              ct=ct+1
-           enddo
-        endif
-
-         
-
-
-
-
-
-
- 
-
-
-     do iL=Par%Lmin,Par%Lmax
-        do iM=0,iL
-           if (myid .eq. mod(elementcount,nproc)) then
-              if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' doing L=', iL, ' and M=',iM
-              procelementcount = procelementcount + 1
-              indLM = lm2index(Par%Lmax,iL,iM)
-              !loop ell
-              do iell=Par%ellmin,Par%ellmax
-                 allocate(wig2(iL+iell+1),wigall(iL+iell+1))
-                 call Wigner3j(wig2, ellpmin, ellpmax, iell, iL, -2, 2, 0)
-                 usedellpmax = min(ellpmax,Par%ellmax)
-                 allocate(F_EB1(ellpmin:usedellpmax),F_BE1(ellpmin:usedellpmax))
-                 ! F_XY divided here by clEEobs(l) or clBBobs(l). It saves some computation time 
-                 F_EB1 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl1(iell,myE)*bl1(ellpmin:usedellpmax,myE) / clEEobs1(iell) 
-                 F_BE1 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl1(ellpmin:usedellpmax,myE)*bl1(iell,myE) / clBBobs1(iell)
-                 if (Par%do_cross) then
-                    allocate(F_EB2(ellpmin:usedellpmax),F_BE2(ellpmin:usedellpmax))
-                    F_EB2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(iell)*bl2(iell,myE)*bl2(ellpmin:usedellpmax,myE) / clEEobs2(iell) 
-                    F_BE2 = 2 * wig2(1:usedellpmax-ellpmin+1) * clEEfid(ellpmin:usedellpmax)*bl2(ellpmin:usedellpmax,myE)*bl2(iell,myE) / clBBobs2(iell)
-                 endif
-                 deallocate(wig2)
-                 norm = sqrt((2.0*iell + 1.0)*(2.0*iL + 1.0)/FOURPI)
-                 !loop emm
-                 do iemm=-iell,iell
-                    iemmp = iemm-iM
-                    m1_to_memm=(-1.0)**(-iemm)
-                    m1_to_emm=(-1.0)**iemm
-
-                    call Wigner3j(wigall, ellpminall, ellpmaxall, iell, iL, iemmp , -iemm, iM)
-!                    call DRC3JJ(real(iell,kind=dp), real(iL,kind=dp), real(-iemm,kind=dp), real(iM,kind=dp), &
-!                           ellpminall, ellpmaxall, wigall, iL+iell+1,IER)
-                    if (iemm .ge. 0) then
-                       ind = lm2index(Par%ellmax,iell,iemm)
-                       curralmE1 = almE1(:,ind)
-                       curralmB1 = almB1(:,ind)
-                    else
-                       ind = lm2index(Par%ellmax,iell,-iemm)
-                       curralmE1 = conjg(almE1(:,ind))*m1_to_memm
-                       curralmB1 = conjg(almB1(:,ind))*m1_to_memm
-                    endif
-
-                    if (Par%do_cross) then
-                       if (iemm .ge. 0) then
-                          !ind is the same of map1
-                          curralmE2 = almE2(:,ind)
-                          curralmB2 = almB2(:,ind)
-                       else
-                          !ind is the same of map1
-                          curralmE2 = conjg(almE2(:,ind))*m1_to_memm
-                          curralmB2 = conjg(almB2(:,ind))*m1_to_memm
-                       endif
-                    endif
-
-                    emmppos = .true.
-                    if (iemmp .lt. 0) emmppos=.false.
-                    
-                    m1_to_memmp=(-1.0)**(-iemmp) 
-
-                    selellpmin = max(ellpminall,ellpmin,Par%ellmin,iell)
-                    selellpmax = min(ellpmaxall,usedellpmax)
-                    abswigmax = maxval(abs(wigall(selellpmin-ellpminall+1:selellpmax-ellpminall+1)))
-                    
-                    do iellp = selellpmin,selellpmax
-                       if ((jmod(iL+iell+iellp,2) .eq. 0) .and. (abs(wigall(iellp-ellpminall+1)) .gt. WIGRATIO*abswigmax)) then
-                          if (iellp .eq. iell) then
-                             factor = 0.5 * norm * m1_to_emm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
-                          else
-                             factor = norm * m1_to_emm * sqrt(2.0*iellp + 1.0) * wigall(iellp-ellpminall+1)
-                          endif
-
-                          if (emmppos) then
-                             ind = lm2index(Par%ellmax,iellp,iemmp)
-                             curralmE1star = conjg(almE1(:,ind))
-                             curralmB1star = conjg(almB1(:,ind))
-                          else
-                             ind = lm2index(Par%ellmax,iellp,-iemmp)
-                             curralmE1star = almE1(:,ind)*m1_to_memmp
-                             curralmB1star = almB1(:,ind)*m1_to_memmp
-                          endif
-                          ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                          procalmalpha1(:,procelementcount) = procalmalpha1(:,procelementcount) + factor * &
-                             (F_EB1(iellp) * curralmE1 * curralmB1star / clBBobs1(iellp) + &
-                              F_BE1(iellp) * curralmB1 * curralmE1star / clEEobs1(iellp))
-
-                          if (Par%do_cross) then
-                             if (emmppos) then
-                                !ind is the same of map1
-                                curralmE2star = conjg(almE2(:,ind))
-                                curralmB2star = conjg(almB2(:,ind))
-                             else
-                                !ind is the same of map1
-                                curralmE2star = almE2(:,ind)*m1_to_memmp
-                                curralmB2star = almB2(:,ind)*m1_to_memmp
-                             endif
-                             ! F_XY already divided by clEEobs(l) or clBBobs(l)
-                             procalmalpha2(:,procelementcount) = procalmalpha2(:,procelementcount) + factor * &
-                                (F_EB2(iellp) * curralmE2 * curralmB2star / clBBobs2(iellp) + &
-                                 F_BE2(iellp) * curralmB2 * curralmE2star / clEEobs2(iellp)) 
-                          endif
-                       endif
-                    enddo
-                 enddo
-                 deallocate(wigall,F_EB1,F_BE1)
-                 if (Par%do_cross) deallocate(F_EB2,F_BE2)
-              enddo
            endif
-           elementcount = elementcount + 1
+           ct=ct+1
         enddo
-     enddo
-     deallocate(curralmE1,curralmB1,curralmE1star,curralmB1star)
-     if (Par%do_cross) deallocate(curralmE2,curralmB2,curralmE2star,curralmB2star)
-     deallocate(almE1,almB1)
-     if (Par%do_cross) deallocate(almE2,almB2) 
+     endif
   
      call mpi_barrier(mpi_comm_world, mpierr)
 
