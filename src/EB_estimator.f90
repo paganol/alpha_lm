@@ -19,7 +19,7 @@ program EB_estimator
   integer :: iellp,ellpmin,ellpmax, iell
   integer :: ellpminall,ellpmaxall,usedellpmax
   integer :: isim,Lcount,iL,nele,elementcount,procelementcount
-  integer :: iemm, iM, iemmp
+  integer :: iemm, iM, iemmp,maxsimperproc,simproc
   integer :: selellpmin,selellpmax 
   integer(i8b) :: npix
   logical :: emmppos,apply_mask1=.false.,apply_mask2=.false.
@@ -147,14 +147,25 @@ program EB_estimator
 
      indmax = lm2index(Par%ellmax,Par%ellmax,Par%ellmax) 
      nele = indmax+1
-     allocate(almE1(Par%nsims,0:indmax))
-     allocate(almB1(Par%nsims,0:indmax))     
+     if (Par%nsims .eq. 1) then
+        allocate(almE1(1,0:indmax))
+        allocate(almB1(1,0:indmax))
+     else
+        maxsimperproc = ceiling(Par%nsims/real(nproc)) 
+        allocate(almE1(maxsimperproc,0:indmax))
+        allocate(almB1(maxsimperproc,0:indmax))     
+     endif
      almE1=0
      almB1=0
      
      if (Par%do_cross) then
-        allocate(almE2(Par%nsims,0:indmax))
-        allocate(almB2(Par%nsims,0:indmax))
+        if (Par%nsims .eq. 1) then
+           allocate(almE2(1,0:indmax))
+           allocate(almB2(1,0:indmax))
+        else
+           allocate(almE2(maxsimperproc,0:indmax))
+           allocate(almB2(maxsimperproc,0:indmax))
+        endif
         almE2=0
         almB2=0
      endif
@@ -211,32 +222,26 @@ program EB_estimator
         if (myid .eq. 0) then
            if (.not. Par%read_precomputed_alms) then
               if (apply_mask1) then
-                 call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1,mask=mask1)
+                 call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1(1,:),almB1(1,:),Par%ellmax,mask=mask1)
               else
-                 call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1,almB1,Par%ellmax,1)
+                 call read_map_and_compute_alms(Par%inmapfile1,Par%niter,almE1(1,:),almB1(1,:),Par%ellmax)
               endif
            else
-              call read_precomputed_alms(Par%inmapfile1,almE1,almB1,1)
+              call read_precomputed_alms(Par%inmapfile1,almE1(1,:),almB1(1,:))
            endif
         endif
-        call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(almE1,nele,mpi_complex,0,mpi_comm_world, mpierr)
-        call mpi_bcast(almB1,nele,mpi_complex,0,mpi_comm_world, mpierr)       
         if (Par%do_cross) then
            if (myid .eq. 0) then
               if (.not. Par%read_precomputed_alms) then
                  if (apply_mask2) then
-                    call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1,mask=mask2)
+                    call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2(1,:),almB2(1,:),Par%ellmax,mask=mask2)
                  else
-                    call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2,almB2,Par%ellmax,1)
+                    call read_map_and_compute_alms(Par%inmapfile2,Par%niter,almE2(1,:),almB2(1,:),Par%ellmax)
                  endif
               else
-                 call read_precomputed_alms(Par%inmapfile2,almE2,almB2,1)
+                 call read_precomputed_alms(Par%inmapfile2,almE2(1,:),almB2(1,:))
               endif
            endif
-           call mpi_barrier(mpi_comm_world, mpierr)
-           call mpi_bcast(almE2,nele,mpi_complex,0,mpi_comm_world,mpierr)
-           call mpi_bcast(almB2,nele,mpi_complex,0,mpi_comm_world,mpierr)
         endif
      else
         ct=1
@@ -246,14 +251,15 @@ program EB_estimator
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               mapname=trim(Par%inmapfile1)//trim(simstr)//trim(Par%endnamemap1)
+              simproc = floor(ct,nproc)
               if (.not. Par%read_precomputed_alms) then
                  if (apply_mask1) then
-                    call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct,mask=mask1)
+                    call read_map_and_compute_alms(mapname,Par%niter,almE1(simproc,:),almB1(simproc,:),Par%ellmax,mask=mask1)
                  else
-                    call read_map_and_compute_alms(mapname,Par%niter,almE1,almB1,Par%ellmax,ct)
+                    call read_map_and_compute_alms(mapname,Par%niter,almE1(simproc,:),almB1(simproc,:),Par%ellmax)
                  endif
               else
-                 call read_precomputed_alms(mapname,almE1,almB1,ct)
+                 call read_precomputed_alms(mapname,almE1(simproc,:),almB1(simproc,:))
               endif
            endif
            ct=ct+1
@@ -261,8 +267,6 @@ program EB_estimator
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_allreduce(mpi_in_place,almE1,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
         call mpi_allreduce(mpi_in_place,almB1,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
-
-        call mpi_barrier(mpi_comm_world, mpierr)     
         
         if (Par%do_cross) then
            ct=1
@@ -271,21 +275,20 @@ program EB_estimator
                  if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  mapname=trim(Par%inmapfile2)//trim(simstr)//trim(Par%endnamemap2)
+                 simproc = floor(ct,nproc)
                  if (.not. Par%read_precomputed_alms) then
                     if (apply_mask2) then
-                       call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct,mask=mask2)
+                       call read_map_and_compute_alms(mapname,Par%niter,almE2(simproc,:),almB2(simproc,:),Par%ellmax,mask=mask2)
                     else
-                       call read_map_and_compute_alms(mapname,Par%niter,almE2,almB2,Par%ellmax,ct)
+                       call read_map_and_compute_alms(mapname,Par%niter,almE2(simproc,:),almB2(simproc,:),Par%ellmax)
                     endif
                  else
-                    call read_precomputed_alms(mapname,almE2,almB2,ct)
+                    call read_precomputed_alms(mapname,almE2(simproc,:),almB2(simproc,:))
                  endif
               endif
               ct=ct+1
            enddo
            call mpi_barrier(mpi_comm_world, mpierr)
-           call mpi_allreduce(mpi_in_place,almE2,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
-           call mpi_allreduce(mpi_in_place,almB2,Par%nsims*nele,mpi_complex,mpi_sum,mpi_comm_world,mpierr)
         endif
      endif
      if (apply_mask1 .and. (.not. Par%read_precomputed_alms)) deallocate(mask1)
@@ -296,7 +299,18 @@ program EB_estimator
      if (Par%do_cross) then
         allocate(clEEmap12(Par%nsims,0:Par%ellmax))
         allocate(clBBmap12(Par%nsims,0:Par%ellmax))
-        if (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,Par%ellmax,clEEmap12,clBBmap12,almE2,almB2)
+        if (Par%nsims .eq. 1) then 
+           if (myid .eq. 0) call compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:),almE2(1,:),almB2(1,:))
+        else
+           ct=1
+           do isim=Par%ssim,Par%ssim+Par%nsims-1
+              if (myid .eq. mod(ct-1,nproc)) then
+                 simproc = floor(ct,nproc)
+                 call compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:),almE2(simproc,:),almB2(simproc,:))
+              endif
+              ct=ct+1
+           enddo
+        endif
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(clEEmap12,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
         call mpi_bcast(clBBmap12,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
@@ -311,7 +325,18 @@ program EB_estimator
      else
         allocate(clEEmap1(Par%nsims,0:Par%ellmax))
         allocate(clBBmap1(Par%nsims,0:Par%ellmax))
-        if  (myid .eq. 0) call compute_cls_from_alms(almE1,almB1,Par%ellmax,clEEmap1,clBBmap1)
+        if (Par%nsims .eq. 1) then
+           if (myid .eq. 0) call compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:))
+        else
+           ct=1
+           do isim=Par%ssim,Par%ssim+Par%nsims-1
+              if (myid .eq. mod(ct-1,nproc)) then
+                 simproc = floor(ct,nproc)
+                 call compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:))
+              endif
+              ct=ct+1
+           enddo
+        endif
         call mpi_barrier(mpi_comm_world, mpierr)
         call mpi_bcast(clEEmap1,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
         call mpi_bcast(clBBmap1,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
@@ -496,32 +521,50 @@ program EB_estimator
       
      call mpi_barrier(mpi_comm_world, mpierr)
 
-     !! count the alms alpha and allocate local variables 
-     elementcount = 0
-     procelementcount = 0 
-     do iL=Par%Lmin,Par%Lmax
-        do iM=0,iL
-           if (myid .eq. mod(elementcount,nproc)) then
-              procelementcount = procelementcount + 1
-           endif
-           elementcount = elementcount + 1
-        enddo
-     enddo
-     allocate(procalmalpha1(1:Par%nsims,procelementcount))
-     procalmalpha1 = 0
+     allocate(almalpha1(0:indLMmax))
+     almalpha1=0
 
      if (Par%do_cross) then
-        allocate(procalmalpha2(1:Par%nsims,procelementcount))
-        procalmalpha2=0
+        allocate(almalpha2(0:indLMmax))
+        almalpha2=0
      endif
 
-     allocate(curralmE1(Par%nsims),curralmB1(Par%nsims),curralmE1star(Par%nsims),curralmB1star(Par%nsims))
-     if (Par%do_cross) allocate(curralmE2(Par%nsims),curralmB2(Par%nsims),curralmE2star(Par%nsims),curralmB2star(Par%nsims))
-
      call mpi_barrier(mpi_comm_world, mpierr)
-   
-     elementcount = 0
-     procelementcount = 0
+     
+     if (Par%nsims .eq. 1) then
+        if (myid .eq. 0) then
+           call compute_alphalm(almE1(1,:),almB1(1,:),clEE(1,:),Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
+        endif
+     else
+        ct=1
+        do isim=Par%ssim,Par%ssim+Par%nsims-1
+           if (myid .eq. mod(ct-1,nproc)) then
+              simproc = floor(ct,nproc)
+              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),clEE(simproc,:),Par%lmax,Par%ellmin,Par%ellmax,almalpha1)
+call
+compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:))
+        else
+           ct=1
+           do isim=Par%ssim,Par%ssim+Par%nsims-1
+              if (myid .eq. mod(ct-1,nproc)) then
+                 simproc = floor(ct,nproc)
+                 call
+compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:))
+              endif
+              ct=ct+1
+           enddo
+        endif
+
+         
+
+
+
+
+
+
+ 
+
+
      do iL=Par%Lmin,Par%Lmax
         do iM=0,iL
            if (myid .eq. mod(elementcount,nproc)) then

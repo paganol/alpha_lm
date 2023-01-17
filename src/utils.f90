@@ -70,17 +70,17 @@ contains
 
   end subroutine read_mask_and_compute_fsky
 
-  subroutine read_map_and_compute_alms(filename,iter,almE,almB,lmax,sim,mask)
+  subroutine read_map_and_compute_alms(filename,iter,almE,almB,lmax,mask)
     character(len=FILENAMELEN) :: filename
-    integer(i4b) :: lmax,nside,iter,sim
+    integer(i4b) :: lmax,nside,iter
     integer(i8b) :: npix
     integer :: imax,ind,lm(2)
     real(sp),allocatable,dimension(:,:) :: maps
     real(sp),optional,dimension(0:,1:) :: mask
-    complex(spc),allocatable,dimension(:,:,:) :: alms
-    complex(spc),dimension(1:,0:) :: almE,almB
+    complex(dpc),allocatable,dimension(:,:,:) :: alms
+    complex(dpc),dimension(0:) :: almE,almB
 
-    imax=size(almE,dim=2)-1
+    imax=size(almE,dim=1)-1
     allocate(alms(1:3,0:lmax,0:lmax))
 
     npix = getsize_fits(trim(filename),nside=nside)
@@ -95,20 +95,20 @@ contains
 
     do ind=0,imax 
        lm = index2lm(lmax,ind)
-       almE(sim,ind)=alms(2,lm(1),lm(2))
-       almB(sim,ind)=alms(3,lm(1),lm(2))
+       almE(ind)=alms(2,lm(1),lm(2))
+       almB(ind)=alms(3,lm(1),lm(2))
     enddo
 
     deallocate(maps,alms)
 
   end subroutine read_map_and_compute_alms
 
-  subroutine read_precomputed_alms(filename,almE,almB,sim)
+  subroutine read_precomputed_alms(filename,almE,almB)
     character(len=FILENAMELEN) :: filename
     integer(i4b) :: sim
     integer(i4b) :: ind,imax,nalm
     real(dp),allocatable,dimension(:,:,:) :: alms
-    complex(spc),dimension(1:,0:) :: almE,almB
+    complex(dpc),dimension(0:) :: almE,almB
     character(len=80), dimension(80,2) :: header
 
     nalm = getsize_fits(trim(filename))
@@ -116,11 +116,11 @@ contains
     
     call fits2alms(trim(filename),nalm,alms,3,header,80,2)
 
-    imax=size(almE,dim=2)-1
+    imax=size(almE,dim=1)-1
 
     do ind=0,imax
-       almE(sim,ind) = cmplx(alms(ind+1,3,1),alms(ind+1,4,1),spc)
-       almB(sim,ind) = cmplx(alms(ind+1,3,2),alms(ind+1,4,2),spc) 
+       almE(ind) = cmplx(alms(ind+1,3,1),alms(ind+1,4,1),dpc)
+       almB(ind) = cmplx(alms(ind+1,3,2),alms(ind+1,4,2),dpc) 
     enddo
 
     deallocate(alms)
@@ -204,7 +204,7 @@ contains
   end subroutine write_out_cls
   
   subroutine write_out_alms(filename,ssim,zerofill,endname,alms)
-    complex(spc), dimension(1:,0:,0:) :: alms
+    complex(dpc), dimension(1:,0:,0:) :: alms
     character(len=FILENAMELEN) :: filename,almname,endname
     integer(i4b) :: lmax
     character(len=16) :: simstr
@@ -235,8 +235,8 @@ contains
   end subroutine write_out_alms
 
   subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms1,lmin,bias,alms2)
-    complex(spc), dimension(1:,0:,0:) :: alms1
-    complex(spc), optional, dimension(1:,0:,0:) :: alms2
+    complex(dpc), dimension(1:,0:,0:) :: alms1
+    complex(dpc), optional, dimension(1:,0:,0:) :: alms2
     real(dp), optional, dimension(:,:) :: bias
     real(sp),allocatable, dimension(:,:) :: cl
     character(len=FILENAMELEN) :: filename,clname,endname
@@ -289,55 +289,50 @@ contains
   end subroutine compute_and_write_cl
 
   subroutine compute_cls_from_alms(almE1,almB1,lmax,clEE,clBB,almE2,almB2)
-    complex(spc), dimension(1:,0:) :: almE1,almB1
-    complex(spc), optional, dimension(1:,0:) :: almE2,almB2
-    complex(spc),allocatable, dimension(:,:,:) :: alm1,alm2
-    real(dp), dimension(1:,0:) :: clEE, clBB
+    complex(dpc), dimension(0:) :: almE1,almB1
+    complex(dpc), optional, dimension(0:) :: almE2,almB2
+    complex(dpc),allocatable, dimension(:,:,:) :: alm1,alm2
+    real(dp), dimension(0:) :: clEE, clBB
     real(sp),allocatable, dimension(:,:) :: cl
-    integer(i4b) :: nsims, lmax, isim
+    integer(i4b) :: lmax
     integer :: ind, imax, lm(2)
 
-    nsims=Size(almE1,dim=1)
-    imax=Size(almE1,dim=2)-1    
+    imax=Size(almE1,dim=1)-1    
 
     allocate(cl(0:lmax,1:1))
 
     if (present(almE2) .and. present(almB2)) then
        allocate(alm1(1:1,0:lmax,0:lmax))
        allocate(alm2(1:1,0:lmax,0:lmax))    
-       do isim=1,nsims
-          do ind=0,imax
-             lm=index2lm(lmax,ind)
-             alm1(1,lm(1),lm(2)) = almE1(isim,ind) 
-             alm2(1,lm(1),lm(2)) = almE2(isim,ind)
-          enddo
-          call alm2cl(lmax,lmax,alm1,alm2,cl)
-          clEE(isim,:) = cl(:,1)
-          do ind=0,imax
-             lm=index2lm(lmax,ind)
-             alm1(1,lm(1),lm(2)) = almB1(isim,ind)           
-             alm2(1,lm(1),lm(2)) = almB2(isim,ind)
-          enddo
-          call alm2cl(lmax,lmax,alm1,alm2,cl)
-          clBB(isim,:) = cl(:,1)
+       do ind=0,imax
+          lm=index2lm(lmax,ind)
+          alm1(1,lm(1),lm(2)) = almE1(ind) 
+          alm2(1,lm(1),lm(2)) = almE2(ind)
        enddo
+       call alm2cl(lmax,lmax,alm1,alm2,cl)
+       clEE(:) = cl(:,1)
+       do ind=0,imax
+          lm=index2lm(lmax,ind)
+          alm1(1,lm(1),lm(2)) = almB1(ind)           
+          alm2(1,lm(1),lm(2)) = almB2(ind)
+       enddo
+       call alm2cl(lmax,lmax,alm1,alm2,cl)
+       clBB(:) = cl(:,1)
        deallocate(alm1,alm2)
     else
        allocate(alm1(1:1,0:lmax,0:lmax))
-       do isim=1,nsims
-          do ind=0,imax
-             lm=index2lm(lmax,ind)
-             alm1(1,lm(1),lm(2)) = almE1(isim,ind)           
-          enddo
-          call alm2cl(lmax,lmax,alm1,cl)
-          clEE(isim,:) = cl(:,1)
-          do ind=0,imax
-             lm=index2lm(lmax,ind)
-             alm1(1,lm(1),lm(2)) = almB1(isim,ind)
-          enddo
-          call alm2cl(lmax,lmax,alm1,cl)
-          clBB(isim,:) = cl(:,1)
+       do ind=0,imax
+          lm=index2lm(lmax,ind)
+          alm1(1,lm(1),lm(2)) = almE1(ind)           
        enddo
+       call alm2cl(lmax,lmax,alm1,cl)
+       clEE(:) = cl(:,1)
+       do ind=0,imax
+          lm=index2lm(lmax,ind)
+          alm1(1,lm(1),lm(2)) = almB1(ind)
+       enddo
+       call alm2cl(lmax,lmax,alm1,cl)
+       clBB(:) = cl(:,1)
        deallocate(alm1)
     endif 
     deallocate(cl)
@@ -360,5 +355,55 @@ contains
     lm(1) = ind - floor(lm(2)*(twolmaxp1-lm(2))/2.d0)
     
   end function index2lm
+
+  subroutine compute_alphalm(almE,almB,clEE,lmax,lmincmb,lmaxcmb,alphalm)
+    complex(dpc), dimension(0:) :: almE,almB,alphalm
+    complex(dpc),allocatable, dimension(:,:,:) :: alm
+    real(dp), dimension(0:) :: clEE
+    integer :: lmincmb, lmaxcmb
+    integer(i4b) :: lmax, nside, npix
+    integer :: ind, imax, lm(2)
+
+    imax = Size(almE,dim=1)-1
+    nside = 2**(int(log(dble(lmax))/log(2d0)))
+    npix = nside2npix(nside)
+
+    allocate(alm(2,0:lmaxcmb,0:lmaxcmb))
+    allocate(M1(0:npix-1,2),M2(0:npix-1,2))
+
+    alm = 0
+    do ind=0,imax
+       lm=index2lm(lmaxcmb,ind)
+       alm(2,lm(1),lm(2)) = almB(ind)
+    enddo
+    alm(2,0:lmincmb-1,:) = 0
+    call alm2map_spin(nside,lmaxcmb,lmaxcmb,2,alm,M1)
+    
+    alm = 0
+    do ind=0,imax
+       lm=index2lm(lmaxcmb,ind)
+       alm(1,lm(1),lm(2)) = clEE(lm(1))*almE(ind)
+    enddo
+    alm(2,0:lmincmb-1,:) = 0
+    call alm2map_spin(nside,lmaxcmb,lmaxcmb,2,alm,M2)
+
+    deallocate(alm)
+   
+    allocate(alpha(0:npix-1))
+    alpha = M1(:,1)*M2(:,2)-M1(:,2)*M2(:,1)
+    deallocate(M1,M2) 
+   
+    allocate(alm(1,0:lmax,0:lmax))
+    call map2alm(nside,lmax,lmax,map,alm)
+    deallocate(alm)
+
+    imax = Size(almalpha,dim=1)-1    
+    do ind=0,imax
+       lm=index2lm(lmax,ind)
+       alphalm(ind) = -2d0*alm(lm(1),lm(2))
+    enddo
+    deallocate(alm)
+    
+  end subroutine compute_alphalm
 
 end module utils
