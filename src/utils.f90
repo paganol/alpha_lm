@@ -45,7 +45,7 @@ contains
     character(len=FILENAMELEN) :: filename
     integer(i4b) :: nmaps
     integer(i8b) :: npix
-    real(sp),intent(out),dimension(0:,1:) :: mask
+    real(dp),intent(out),dimension(0:,1:) :: mask
     real(dp),allocatable,dimension(:,:) :: maps
     real(dp),intent(out) :: fsky
 
@@ -75,8 +75,8 @@ contains
     integer(i4b) :: lmax,nside,iter
     integer(i8b) :: npix
     integer :: imax,ind,lm(2)
-    real(sp),allocatable,dimension(:,:) :: maps
-    real(sp),optional,dimension(0:,1:) :: mask
+    real(dp),allocatable,dimension(:,:) :: maps
+    real(dp),optional,dimension(0:,1:) :: mask
     complex(dpc),allocatable,dimension(:,:,:) :: alms
     complex(dpc),dimension(0:) :: almE,almB
 
@@ -105,7 +105,6 @@ contains
 
   subroutine read_precomputed_alms(filename,almE,almB)
     character(len=FILENAMELEN) :: filename
-    integer(i4b) :: sim
     integer(i4b) :: ind,imax,nalm
     real(dp),allocatable,dimension(:,:,:) :: alms
     complex(dpc),dimension(0:) :: almE,almB
@@ -167,23 +166,23 @@ contains
     
   end subroutine read_beam
   
-  subroutine write_out_cls(filename,ssim,zerofill,endname,cls,lmin)
+  subroutine write_out_cls(filename,ssim,zerofill,endname,cls)
     real(dp), dimension(:,:) :: cls
     character(len=FILENAMELEN),intent(in) ::  filename,endname
     character(len=FILENAMELEN) :: clname
-    integer :: myunit,lmin,nell,ct
+    integer :: myunit,lmax,ct
     character(len=16) :: simstr
     character(len=1) :: strzerofill
     integer(i4b) :: zerofill,nsims,ssim,isim,il
 
     nsims=Size(cls,dim=1)
-    nell=Size(cls,dim=2)
+    lmax=Size(cls,dim=2)-1
 
     if (nsims .eq. 1) then
        clname=filename
        open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
-       do il=1,nell
-          write(myunit,'(I4,*(E15.7))') lmin+il-1,cls(1,il)
+       do il=0,lmax
+          write(myunit,'(I4,*(E15.7))') il,cls(1,il)
        enddo
        close(myunit)
     else
@@ -193,8 +192,8 @@ contains
           write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
           clname=trim(filename)//trim(simstr)//trim(endname)
           open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
-          do il=1,nell
-             write(myunit,'(I4,*(E15.7))') lmin+il-1,cls(ct,il)
+          do il=0,lmax
+             write(myunit,'(I4,*(E15.7))') il,cls(ct,il)
           enddo
           close(myunit)
           ct=ct+1
@@ -234,11 +233,25 @@ contains
     
   end subroutine write_out_alms
 
-  subroutine compute_and_write_cl(filename,ssim,zerofill,endname,alms1,lmin,bias,alms2)
+  subroutine write_out_alm(filename,alm)
+    complex(dpc), dimension(0:,0:) :: alm
+    character(len=FILENAMELEN) :: filename
+    integer(i4b) :: lmax
+    character(len=80), dimension(1:60) :: header
+
+    lmax=Size(alm,DIM=1)-1
+
+    call write_minimal_header(header, 'ALM', nlmax=lmax,nmmax=lmax,polar=.False.)
+
+    call dump_alms(trim(filename),alm(:,:),lmax,header,60,0)
+
+  end subroutine write_out_alm
+
+  subroutine compute_and_write_cls(filename,ssim,zerofill,endname,alms1,lmin,bias,alms2)
     complex(dpc), dimension(1:,0:,0:) :: alms1
     complex(dpc), optional, dimension(1:,0:,0:) :: alms2
     real(dp), optional, dimension(:,:) :: bias
-    real(sp),allocatable, dimension(:,:) :: cl
+    real(dp),allocatable, dimension(:,:) :: cl
     character(len=FILENAMELEN) :: filename,clname,endname
     integer(i4b) :: lmax,lmin
     character(len=16) :: simstr
@@ -286,6 +299,36 @@ contains
 
     deallocate(cl)
 
+  end subroutine compute_and_write_cls
+
+  subroutine compute_and_write_cl(filename,alm1,bias,alm2)
+    complex(dpc), dimension(1:,0:,0:) :: alm1
+    complex(dpc), optional, dimension(1:,0:,0:) :: alm2
+    real(dp), optional, dimension(:) :: bias
+    real(dp),allocatable, dimension(:,:) :: cl
+    character(len=FILENAMELEN) :: filename
+    integer(i4b) :: il,lmax,myunit
+
+    lmax=Size(alm1,DIM=2)-1
+
+    allocate(cl(0:lmax,1:1))
+
+    if (present(alm2)) then
+       call alm2cl(lmax,lmax,alm1(1:1,:,:),alm2(1:1,:,:),cl)
+    else
+       call alm2cl(lmax,lmax,alm1(1:1,:,:),cl)
+    endif
+
+    if (present(bias)) cl(:,1) = cl(:,1) - bias
+    
+    open(newunit=myunit,file=trim(filename),status='replace',form='formatted')
+    do il=0,lmax
+       write(myunit,'(I4,*(E15.7))') il,cl(il,1)
+    enddo
+    close(myunit)
+  
+    deallocate(cl)
+
   end subroutine compute_and_write_cl
 
   subroutine compute_cls_from_alms(almE1,almB1,lmax,clEE,clBB,almE2,almB2)
@@ -293,7 +336,7 @@ contains
     complex(dpc), optional, dimension(0:) :: almE2,almB2
     complex(dpc),allocatable, dimension(:,:,:) :: alm1,alm2
     real(dp), dimension(0:) :: clEE, clBB
-    real(sp),allocatable, dimension(:,:) :: cl
+    real(dp),allocatable, dimension(:,:) :: cl
     integer(i4b) :: lmax
     integer :: ind, imax, lm(2)
 
@@ -358,8 +401,10 @@ contains
 
   subroutine compute_alphalm(almE,almB,clEE,lmax,lmincmb,lmaxcmb,alphalm)
     complex(dpc), dimension(0:) :: almE,almB,alphalm
-    complex(dpc),allocatable, dimension(:,:,:) :: alm
+    complex(dpc), allocatable, dimension(:,:,:) :: alm
     real(dp), dimension(0:) :: clEE
+    real(dp), allocatable, dimension(:,:) :: M1, M2
+    real(dp), allocatable, dimension(:) :: alpha
     integer :: lmincmb, lmaxcmb
     integer(i4b) :: lmax, nside, npix
     integer :: ind, imax, lm(2)
@@ -394,16 +439,32 @@ contains
     deallocate(M1,M2) 
    
     allocate(alm(1,0:lmax,0:lmax))
-    call map2alm(nside,lmax,lmax,map,alm)
-    deallocate(alm)
+    call map2alm(nside,lmax,lmax,alpha,alm)
 
-    imax = Size(almalpha,dim=1)-1    
+    imax = Size(alphalm,dim=1)-1    
     do ind=0,imax
        lm=index2lm(lmax,ind)
-       alphalm(ind) = -2d0*alm(lm(1),lm(2))
+       alphalm(ind) = -2d0*alm(1,lm(1),lm(2))
     enddo
     deallocate(alm)
     
   end subroutine compute_alphalm
+
+  subroutine reorder_and_normalize_alms(alphalm,norml,alm)
+    complex(dpc), dimension(0:) :: alphalm
+    complex(dpc), dimension(:,:) :: alm
+    real(dp), dimension(0:) :: norml
+    integer :: ind, imax, lmax, lm(2)
+
+    imax = size(alphalm,dim=1)-1
+    lmax = size(alm,dim=1)
+
+     do ind=0,imax
+        lm = index2lm(lmax,ind)
+        alm(lm(1),lm(2)) = alphalm(ind) / norml(lm(1))
+     enddo
+
+  end subroutine reorder_and_normalize_alms
+
 
 end module utils
