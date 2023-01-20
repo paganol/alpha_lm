@@ -399,10 +399,9 @@ contains
     
   end function index2lm
 
-  subroutine compute_alphalm(almE,almB,clEE,lmax,lmincmb,lmaxcmb,alphalm)
+  subroutine compute_alphalm(almE,almB,lmax,lmincmb,lmaxcmb,alphalm)
     complex(dpc), dimension(0:) :: almE,almB,alphalm
     complex(dpc), allocatable, dimension(:,:,:) :: alm
-    real(dp), dimension(0:) :: clEE
     real(dp), allocatable, dimension(:,:) :: M1, M2
     real(dp), allocatable, dimension(:) :: alpha
     integer :: lmincmb, lmaxcmb
@@ -421,15 +420,15 @@ contains
        lm=index2lm(lmaxcmb,ind)
        alm(2,lm(1),lm(2)) = almB(ind)
     enddo
-    alm(2,0:lmincmb-1,:) = 0
+    if (lmincmb .gt. 0) alm(2,0:lmincmb-1,:) = 0
     call alm2map_spin(nside,lmaxcmb,lmaxcmb,2,alm,M1)
     
     alm = 0
     do ind=0,imax
        lm=index2lm(lmaxcmb,ind)
-       alm(1,lm(1),lm(2)) = clEE(lm(1))*almE(ind)
+       alm(1,lm(1),lm(2)) = almE(ind)
     enddo
-    alm(2,0:lmincmb-1,:) = 0
+    if (lmincmb .gt. 0) alm(2,0:lmincmb-1,:) = 0
     call alm2map_spin(nside,lmaxcmb,lmaxcmb,2,alm,M2)
 
     deallocate(alm)
@@ -444,7 +443,7 @@ contains
     imax = Size(alphalm,dim=1)-1    
     do ind=0,imax
        lm=index2lm(lmax,ind)
-       alphalm(ind) = -2d0*alm(1,lm(1),lm(2))
+       alphalm(ind) = -2d0*conjg(alm(1,lm(1),lm(2)))
     enddo
     deallocate(alm)
     

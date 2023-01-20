@@ -15,15 +15,15 @@ program EB_estimator
   
   !variables
   integer :: myid,nproc,mpierr
-  integer :: indmax,indLMmax,usedellpmax
+  integer :: ind,indmax,indLMmax,usedellpmax,lm(2)
   integer :: iellp,ellpmin,ellpmax,iell
-  integer :: isim,iL,nele,maxsimperproc,simproc
+  integer :: isim,iL,maxsimperproc,simproc
   integer(i8b) :: npix
   logical :: apply_mask1=.false.,apply_mask2=.false.
-  real(dp), allocatable, dimension(:) :: one_o_var1,red_one_o_var1,one_o_var2,red_one_o_var2,wig2
+  real(dp), allocatable, dimension(:) :: one_o_var1,one_o_var2,wig2
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
-  real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha,red_biasalpha
+  real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha
   complex(dpc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
   complex(dpc), allocatable, dimension(:,:,:) :: alm1,alm2
   complex(dpc), allocatable, dimension(:) :: almalpha1,almalpha2
@@ -139,7 +139,6 @@ program EB_estimator
      call mpi_bcast(Par%read_precomputed_alms,1,mpi_logical,0,mpi_comm_world,mpierr)
 
      indmax = lm2index(Par%ellmax,Par%ellmax,Par%ellmax) 
-     nele = indmax+1
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
            allocate(almE1(1,0:indmax))
@@ -252,7 +251,7 @@ program EB_estimator
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               mapname=trim(Par%inmapfile1)//trim(simstr)//trim(Par%endnamemap1)
-              simproc = floor(ct/real(nproc))
+              simproc = floor(ct/real(nproc)) + 1
               if (.not. Par%read_precomputed_alms) then
                  if (apply_mask1) then
                     call read_map_and_compute_alms(mapname,Par%niter,almE1(simproc,:),almB1(simproc,:),Par%ellmax,mask=mask1)
@@ -273,7 +272,7 @@ program EB_estimator
                  if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  mapname=trim(Par%inmapfile2)//trim(simstr)//trim(Par%endnamemap2)
-                 simproc = floor(ct/real(nproc))
+                 simproc = floor(ct/real(nproc)) + 1
                  if (.not. Par%read_precomputed_alms) then
                     if (apply_mask2) then
                        call read_map_and_compute_alms(mapname,Par%niter,almE2(simproc,:),almB2(simproc,:),Par%ellmax,mask=mask2)
@@ -296,21 +295,23 @@ program EB_estimator
      if (Par%do_cross) then
         allocate(clEEmap12(Par%nsims,0:Par%ellmax))
         allocate(clBBmap12(Par%nsims,0:Par%ellmax))
+        clEEmap12 = 0
+        clBBmap12 = 0
         if (Par%nsims .eq. 1) then 
            if (myid .eq. 0) call compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:),almE2(1,:),almB2(1,:))
         else
            ct=1
            do isim=Par%ssim,Par%ssim+Par%nsims-1
               if (myid .eq. mod(ct-1,nproc)) then
-                 simproc = floor(ct/real(nproc))
+                 simproc = floor(ct/real(nproc)) + 1
                  call compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:),almE2(simproc,:),almB2(simproc,:))
               endif
               ct=ct+1
            enddo
         endif
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(clEEmap12,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
-        call mpi_bcast(clBBmap12,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_allreduce(mpi_in_place,clEEmap12,Par%nsims*(Par%ellmax+1),mpi_real8,mpi_sum,mpi_comm_world,mpierr)
+        call mpi_allreduce(mpi_in_place,clBBmap12,Par%nsims*(Par%ellmax+1),mpi_real8,mpi_sum,mpi_comm_world,mpierr)
         if (apply_mask1) then
            clEEmap12 = clEEmap12 / sqrt(fsky1)
            clBBmap12 = clBBmap12 / sqrt(fsky1)
@@ -322,6 +323,8 @@ program EB_estimator
      else
         allocate(clEEmap1(Par%nsims,0:Par%ellmax))
         allocate(clBBmap1(Par%nsims,0:Par%ellmax))
+        clEEmap1 = 0
+        clEEmap1 = 0 
         if (Par%nsims .eq. 1) then
            if (myid .eq. 0) call compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:))
         else
@@ -335,8 +338,8 @@ program EB_estimator
            enddo
         endif
         call mpi_barrier(mpi_comm_world, mpierr)
-        call mpi_bcast(clEEmap1,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
-        call mpi_bcast(clBBmap1,Par%nsims*(Par%ellmax+1),mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_allreduce(mpi_in_place,clEEmap1,Par%nsims*(Par%ellmax+1),mpi_real8,mpi_sum,mpi_comm_world,mpierr)
+        call mpi_allreduce(mpi_in_place,clBBmap1,Par%nsims*(Par%ellmax+1),mpi_real8,mpi_sum,mpi_comm_world,mpierr)
         if (apply_mask1) then
            clEEmap1 = clEEmap1 / fsky1
            clBBmap1 = clBBmap1 / fsky1
@@ -361,7 +364,7 @@ program EB_estimator
   call mpi_barrier(mpi_comm_world, mpierr)
   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-  !! Start E operator computation
+  !! Start sigma and bias computations
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Starting Computation'
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) call system_clock(t1, clock_rate, clock_max)
@@ -378,7 +381,7 @@ program EB_estimator
 
   if (Par%compute_biasalpha) then
      allocate(biasalpha(1:Par%nsims,0:Par%Lmax))
-     biasalpha = 0
+     biasalpha = 0.0
   endif
 
   if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computing sigma and bias'
@@ -459,74 +462,62 @@ program EB_estimator
   if ((myid .eq. 0) .and. (Par%feedback .gt. 2)) write (0,*) 'Elapsed real time for sigma computation = ', real ( t2 - t1 ) / real ( clock_rate )    
 
   call mpi_barrier(mpi_comm_world, mpierr)
-  allocate(red_one_o_var1(0:Par%Lmax))
-  red_one_o_var1=0.0
-  call mpi_barrier(mpi_comm_world, mpierr)
-  call mpi_reduce(one_o_var1,red_one_o_var1,Par%Lmax+1,mpi_real8,mpi_sum,0,mpi_comm_world, mpierr)
-  call mpi_bcast(red_one_o_var1,Par%Lmax+1,mpi_real8,0,mpi_comm_world,mpierr)
-  deallocate(one_o_var1)
-  call mpi_barrier(mpi_comm_world, mpierr)
+  call mpi_allreduce(mpi_in_place,one_o_var1,Par%Lmax+1,mpi_real8,mpi_sum,mpi_comm_world,mpierr)
 
   if (Par%do_cross) then 
-     allocate(red_one_o_var2(0:Par%Lmax))
-     red_one_o_var2=0.0
      call mpi_barrier(mpi_comm_world, mpierr)
-     call mpi_reduce(one_o_var2,red_one_o_var2,Par%Lmax+1,mpi_real8,mpi_sum,0,mpi_comm_world,mpierr)
-     call mpi_bcast(red_one_o_var2,Par%Lmax+1,mpi_real8,0,mpi_comm_world,mpierr)
-     deallocate(one_o_var2)
-     call mpi_barrier(mpi_comm_world, mpierr)  
+     call mpi_allreduce(mpi_in_place,one_o_var2,Par%Lmax+1,mpi_real8,mpi_sum,mpi_comm_world,mpierr)
   endif
   
   if (myid .eq. 0) then
      if (Par%feedback .gt. 1) write(0,*) 'Write out sigma'
      open(newunit=myunit,file=trim(Par%outsigmafile1),status='replace',form='formatted')
      do iL=0,Par%Lmax
-        write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/red_one_o_var1(iL))
+        write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/one_o_var1(iL))
      enddo
      close(myunit)
      if (Par%do_cross) then
         open(newunit=myunit,file=trim(Par%outsigmafile2),status='replace',form='formatted')
         do iL=0,Par%Lmax
-           write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/red_one_o_var2(iL))
+           write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/one_o_var2(iL))
         enddo
         close(myunit)
      endif
   endif
 
-  call mpi_barrier(mpi_comm_world, mpierr) 
-
   if (Par%compute_biasalpha) then
-     allocate(red_biasalpha(1:Par%nsims,0:Par%Lmax))
-     red_biasalpha=0.0
      call mpi_barrier(mpi_comm_world, mpierr)
-     call mpi_reduce(biasalpha,red_biasalpha,(Par%Lmax+1)*Par%nsims,mpi_real8,mpi_sum,0,mpi_comm_world,mpierr)
-     call mpi_bcast(red_biasalpha,(Par%Lmax+1)*Par%nsims,mpi_real8,0,mpi_comm_world,mpierr)
-     deallocate(biasalpha)
+     call mpi_allreduce(mpi_in_place,biasalpha,(Par%Lmax+1)*Par%nsims,mpi_real8,mpi_sum,mpi_comm_world,mpierr)
+  endif
+
+  call mpi_barrier(mpi_comm_world, mpierr)
+
+  if (Par%do_cross) then
+     do iL=0,Par%Lmax
+        biasalpha(:,iL) = biasalpha(:,iL) / one_o_var1(iL) / one_o_var2(iL)
+        enddo
+  else
+     do iL=0,Par%Lmax
+        biasalpha(:,iL) = biasalpha(:,iL) / one_o_var1(iL)**2
+     enddo
   endif
 
   call mpi_barrier(mpi_comm_world, mpierr)
 
   if (Par%compute_biasalpha .and. (myid .eq. 0)) then
-     if (Par%do_cross) then
-        do iL=0,Par%Lmax
-           red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var1(iL) / red_one_o_var2(iL)
-        enddo
-     else
-        do iL=0,Par%Lmax
-           red_biasalpha(:,iL) = red_biasalpha(:,iL) / red_one_o_var1(iL)**2
-        enddo
-     endif
      if (Par%feedback .gt. 1) write(0,*) 'Write out bias'
-     call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,red_biasalpha)
+     call write_out_cls(Par%outbiasfile,Par%ssim,Par%zerofill,Par%endnamebias,biasalpha)
   endif
 
-  !! Compute alphalm
+  call mpi_barrier(mpi_comm_world, mpierr)
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+  !! Start alphalm computation
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
   if (Par%compute_alphalm) then
 
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computing alpha_LM'
       
-     call mpi_barrier(mpi_comm_world, mpierr)
-
      allocate(almalpha1(0:indLMmax))
      almalpha1=0
      if (Par%do_cross) then
@@ -537,26 +528,56 @@ program EB_estimator
      call mpi_barrier(mpi_comm_world, mpierr)
      allocate(alm1(1:1,0:Par%Lmax,0:Par%Lmax))
      if (Par%do_cross) allocate(alm2(1:1,0:Par%Lmax,0:Par%Lmax))
+
+     if (Par%nsims .eq. 1) then
+        if (myid .eq. 0) then
+           do ind=0,indmax
+              lm=index2lm(Par%ellmax,ind)
+              almE1(1,ind) = conjg(almE1(1,ind)) * clEEfid(lm(1)) * bl1(lm(1),myE) / clEEobs1(lm(1))
+              almB1(1,ind) = conjg(almB1(1,ind)) * bl1(lm(1),myB) / clBBobs1(lm(1))
+           enddo
+           if (Par%do_cross) then
+              do ind=0,indmax
+                 lm=index2lm(Par%ellmax,ind)
+                 almE2(1,ind) = conjg(almE2(1,ind)) * clEEfid(lm(1)) * bl2(lm(1),myE) / clEEobs2(lm(1))
+                 almB2(1,ind) = conjg(almB2(1,ind)) * bl2(lm(1),myB) / clBBobs2(lm(1))
+              enddo
+           endif
+        endif
+     else
+        do ind=0,indmax
+           lm=index2lm(Par%ellmax,ind)
+           almE1(:,ind) = conjg(almE1(:,ind)) * clEEfid(lm(1)) * bl1(lm(1),myE) / clEEobs1(lm(1))
+           almB1(:,ind) = conjg(almB1(:,ind)) * bl1(lm(1),myB) / clBBobs1(lm(1))
+        enddo
+        if (Par%do_cross) then
+           do ind=0,indmax
+              lm=index2lm(Par%ellmax,ind)
+              almE2(:,ind) = conjg(almE2(:,ind)) * clEEfid(lm(1)) * bl2(lm(1),myE) / clEEobs2(lm(1))
+              almB2(:,ind) = conjg(almB2(:,ind)) * bl2(lm(1),myB) / clBBobs2(lm(1))
+           enddo
+        endif
+     endif
      
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
-           call compute_alphalm(almE1(1,:),almB1(1,:),clEEfid,Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
-           call reorder_and_normalize_alms(almalpha1,red_one_o_var1,alm1(1,:,:))
+           call compute_alphalm(almE1(1,:),almB1(1,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
+           call reorder_and_normalize_alms(almalpha1,one_o_var1,alm1(1,:,:))
            call write_out_alm(Par%outalmfile1,alm1(1,:,:)) 
            if (Par%do_cross) then
-              call compute_alphalm(almE2(1,:),almB2(1,:),clEEfid,Par%Lmax,Par%ellmin,Par%ellmax,almalpha2)
-              call reorder_and_normalize_alms(almalpha2,red_one_o_var2,alm2(1,:,:))
+              call compute_alphalm(almE2(1,:),almB2(1,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha2)
+              call reorder_and_normalize_alms(almalpha2,one_o_var2,alm2(1,:,:))
               call write_out_alm(Par%outalmfile2,alm2(1,:,:))
            endif           
            if (Par%do_cross) then 
               if (Par%compute_biasalpha .and. Par%subtract_bias) then
-                 call compute_and_write_cl(Par%outclfile,alm1,bias=red_biasalpha(1,:),alm2=alm2)
+                 call compute_and_write_cl(Par%outclfile,alm1,bias=biasalpha(1,:),alm2=alm2)
               else
                  call compute_and_write_cl(Par%outclfile,alm1,alm2=alm2)                 
               endif
            else
               if (Par%compute_biasalpha .and. Par%subtract_bias) then
-                 call compute_and_write_cl(Par%outclfile,alm1,bias=red_biasalpha(1,:))
+                 call compute_and_write_cl(Par%outclfile,alm1,bias=biasalpha(1,:))
               else
                  call compute_and_write_cl(Par%outclfile,alm1)
               endif
@@ -567,15 +588,15 @@ program EB_estimator
         ct=1
         do isim=Par%ssim,Par%ssim+Par%nsims-1
            if (myid .eq. mod(ct-1,nproc)) then
-              simproc = floor(ct/real(nproc))
-              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),clEEfid,Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
-              call reorder_and_normalize_alms(almalpha1,red_one_o_var1,alm1(1,:,:))
+              simproc = floor(ct/real(nproc)) + 1
+              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
+              call reorder_and_normalize_alms(almalpha1,one_o_var1,alm1(1,:,:))
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               filename=trim(Par%outalmfile1)//trim(simstr)//trim(Par%endnamealm1)
               call write_out_alm(filename,alm1(1,:,:))
               if (Par%do_cross) then
-                 call compute_alphalm(almE2(simproc,:),almB2(simproc,:),clEEfid,Par%Lmax,Par%ellmin,Par%ellmax,almalpha2)
-                 call reorder_and_normalize_alms(almalpha2,red_one_o_var2,alm2(1,:,:))
+                 call compute_alphalm(almE2(simproc,:),almB2(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha2)
+                 call reorder_and_normalize_alms(almalpha2,one_o_var2,alm2(1,:,:))
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  filename=trim(Par%outalmfile2)//trim(simstr)//trim(Par%endnamealm2)
                  call write_out_alm(filename,alm2(1,:,:))
@@ -586,13 +607,13 @@ program EB_estimator
 
               if (Par%do_cross) then
                  if (Par%compute_biasalpha .and. Par%subtract_bias) then
-                    call compute_and_write_cl(filename,alm1,bias=red_biasalpha(ct,:),alm2=alm2)
+                    call compute_and_write_cl(filename,alm1,bias=biasalpha(ct,:),alm2=alm2)
                  else
                     call compute_and_write_cl(filename,alm1,alm2=alm2)
                  endif
               else
                  if (Par%compute_biasalpha .and. Par%subtract_bias) then
-                    call compute_and_write_cl(filename,alm1,bias=red_biasalpha(ct,:))
+                    call compute_and_write_cl(filename,alm1,bias=biasalpha(ct,:))
                  else
                     call compute_and_write_cl(filename,alm1)
                  endif
@@ -617,12 +638,12 @@ program EB_estimator
      
   endif
 
-  deallocate(red_one_o_var1)
-  if (Par%do_cross) deallocate(red_one_o_var2)
+  deallocate(one_o_var1)
+  if (Par%do_cross) deallocate(one_o_var2)
 
   if (Par%compute_biasalpha) then
-     deallocate(red_one_o_var1)
-     if (Par%do_cross) deallocate(red_one_o_var2)
+     deallocate(one_o_var1)
+     if (Par%do_cross) deallocate(one_o_var2)
   endif
 
   deallocate(clEEfid,clEEobs1,clBBobs1)
