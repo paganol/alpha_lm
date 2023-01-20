@@ -640,7 +640,12 @@ program EB_estimator
 
      !! reorder the alms alpha
      allocate(almalpha1(1:Par%nsims,0:indLMmax))
-     if (Par%do_cross) allocate(almalpha2(1:Par%nsims,0:indLMmax))
+     almalpha1 = 0
+     if (Par%do_cross) then
+        allocate(almalpha2(1:Par%nsims,0:indLMmax))
+        almalpha2 =0
+     endif
+
      elementcount = 0
      procelementcount = 0
      do iL=Par%Lmin,Par%Lmax
