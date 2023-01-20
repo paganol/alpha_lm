@@ -22,12 +22,11 @@ nsims = 301
 start_sim = 0
 
 lmin = 50
-lmax = 750
+lmax = 1500
 
-Lmin = 0
-Lmax = 500
+Lmax = 1500
 
-namerun = 'commander_ns2048_Lmin'+str(Lmin).zfill(4)+'_Lmax'+str(Lmax).zfill(4)+'_lmin'+str(lmin).zfill(4)+'_lmax'+str(lmax).zfill(4)+'_maskstd'
+namerun = 'commander_ns2048_Lmax'+str(Lmax).zfill(4)+'_lmin'+str(lmin).zfill(4)+'_lmax'+str(lmax).zfill(4)+'_maskstd'
 
 lmax_beam = lmax
 
@@ -118,7 +117,6 @@ number_of_iterations = 3
 ellmin = {lmin}
 ellmax = {lmax}
 
-Lmin = {Lmin} 
 Lmax = {Lmax}
 
 cl_file = {fiducialfile}

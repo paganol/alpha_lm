@@ -167,7 +167,7 @@ contains
   end subroutine read_beam
   
   subroutine write_out_cls(filename,ssim,zerofill,endname,cls)
-    real(dp), dimension(:,:) :: cls
+    real(dp), dimension(:,0:) :: cls
     character(len=FILENAMELEN),intent(in) ::  filename,endname
     character(len=FILENAMELEN) :: clname
     integer :: myunit,lmax,ct
@@ -451,12 +451,12 @@ contains
 
   subroutine reorder_and_normalize_alms(alphalm,norml,alm)
     complex(dpc), dimension(0:) :: alphalm
-    complex(dpc), dimension(:,:) :: alm
+    complex(dpc), dimension(0:,0:) :: alm
     real(dp), dimension(0:) :: norml
     integer :: ind, imax, lmax, lm(2)
 
     imax = size(alphalm,dim=1)-1
-    lmax = size(alm,dim=1)
+    lmax = size(norml,dim=1)-1
 
      do ind=0,imax
         lm = index2lm(lmax,ind)

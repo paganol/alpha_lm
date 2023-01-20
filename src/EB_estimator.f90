@@ -132,9 +132,15 @@ program EB_estimator
      call mpi_bcast(Par%endnamemap1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%zerofill,1,mpi_integer,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%niter,1,mpi_integer,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%outalmfile1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%endnamealm1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%outclfile,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%endnamecl,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      if (Par%do_cross) then
         call mpi_bcast(Par%inmapfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
         call mpi_bcast(Par%endnamemap2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%outalmfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%endnamealm2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      endif
      call mpi_bcast(Par%read_precomputed_alms,1,mpi_logical,0,mpi_comm_world,mpierr)
 
@@ -588,6 +594,7 @@ program EB_estimator
         ct=1
         do isim=Par%ssim,Par%ssim+Par%nsims-1
            if (myid .eq. mod(ct-1,nproc)) then
+              if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' processing sim ', isim
               simproc = floor(ct/real(nproc)) + 1
               call compute_alphalm(almE1(simproc,:),almB1(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
               call reorder_and_normalize_alms(almalpha1,one_o_var1,alm1(1,:,:))
@@ -641,10 +648,7 @@ program EB_estimator
   deallocate(one_o_var1)
   if (Par%do_cross) deallocate(one_o_var2)
 
-  if (Par%compute_biasalpha) then
-     deallocate(one_o_var1)
-     if (Par%do_cross) deallocate(one_o_var2)
-  endif
+  if (Par%compute_biasalpha) deallocate(biasalpha)
 
   deallocate(clEEfid,clEEobs1,clBBobs1)
   if (Par%do_cross) deallocate(clEEobs2,clBBobs2)  
