@@ -260,7 +260,7 @@ program EB_estimator
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               mapname=trim(Par%inmapfile1)//trim(simstr)//trim(Par%endnamemap1)
-              simproc = floor(ct/real(nproc)) + 1
+              simproc = ceiling(ct/real(nproc))
               if (.not. Par%read_precomputed_alms) then
                  if (apply_mask1) then
                     call read_map_and_compute_alms(mapname,Par%niter,almE1(simproc,:),almB1(simproc,:),Par%ellmax,mask=mask1)
@@ -281,7 +281,7 @@ program EB_estimator
                  if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' reading map ', isim
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  mapname=trim(Par%inmapfile2)//trim(simstr)//trim(Par%endnamemap2)
-                 simproc = floor(ct/real(nproc)) + 1
+                 simproc = ceiling(ct/real(nproc))
                  if (.not. Par%read_precomputed_alms) then
                     if (apply_mask2) then
                        call read_map_and_compute_alms(mapname,Par%niter,almE2(simproc,:),almB2(simproc,:),Par%ellmax,mask=mask2)
@@ -312,7 +312,7 @@ program EB_estimator
            ct=1
            do isim=Par%ssim,Par%ssim+Par%nsims-1
               if (myid .eq. mod(ct-1,nproc)) then
-                 simproc = floor(ct/real(nproc)) + 1
+                 simproc = ceiling(ct/real(nproc))
                  call compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:),almE2(simproc,:),almB2(simproc,:))
               endif
               ct=ct+1
@@ -335,13 +335,13 @@ program EB_estimator
         clEEmap1 = 0
         clEEmap1 = 0 
         if (Par%nsims .eq. 1) then
-           if (myid .eq. 0) call compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap12(1,:),clBBmap12(1,:))
+           if (myid .eq. 0) call compute_cls_from_alms(almE1(1,:),almB1(1,:),Par%ellmax,clEEmap1(1,:),clBBmap1(1,:))
         else
            ct=1
            do isim=Par%ssim,Par%ssim+Par%nsims-1
               if (myid .eq. mod(ct-1,nproc)) then
-                 simproc = floor(ct/real(nproc))
-                 call compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap12(ct,:),clBBmap12(ct,:))
+                 simproc = ceiling(ct/real(nproc))
+                 call compute_cls_from_alms(almE1(simproc,:),almB1(simproc,:),Par%ellmax,clEEmap1(ct,:),clBBmap1(ct,:))
               endif
               ct=ct+1
            enddo
@@ -504,7 +504,7 @@ program EB_estimator
   if (Par%do_cross) then
      do iL=0,Par%Lmax
         biasalpha(:,iL) = biasalpha(:,iL) / one_o_var1(iL) / one_o_var2(iL)
-        enddo
+     enddo
   else
      do iL=0,Par%Lmax
         biasalpha(:,iL) = biasalpha(:,iL) / one_o_var1(iL)**2
@@ -527,17 +527,6 @@ program EB_estimator
 
      if ((myid .eq. 0) .and. (Par%feedback .gt. 0)) write(0,*) 'Computing alpha_LM'
       
-     allocate(almalpha1(0:indLMmax))
-     almalpha1=0
-     if (Par%do_cross) then
-        allocate(almalpha2(0:indLMmax))
-        almalpha2=0
-     endif 
-
-     call mpi_barrier(mpi_comm_world, mpierr)
-     allocate(alm1(1:1,0:Par%Lmax,0:Par%Lmax))
-     if (Par%do_cross) allocate(alm2(1:1,0:Par%Lmax,0:Par%Lmax))
-
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
            do ind=0,indmax
@@ -567,6 +556,20 @@ program EB_estimator
            enddo
         endif
      endif
+
+     deallocate(clEEfid,bl1,clEEobs1,clBBobs1)
+     if (Par%do_cross) deallocate(bl2,clEEobs2,clBBobs2)
+
+     allocate(almalpha1(0:indLMmax))
+     almalpha1=0
+     if (Par%do_cross) then
+        allocate(almalpha2(0:indLMmax))
+        almalpha2=0
+     endif
+
+     call mpi_barrier(mpi_comm_world, mpierr)
+     allocate(alm1(1:1,0:Par%Lmax,0:Par%Lmax))
+     if (Par%do_cross) allocate(alm2(1:1,0:Par%Lmax,0:Par%Lmax))
      
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
@@ -598,7 +601,7 @@ program EB_estimator
         do isim=Par%ssim,Par%ssim+Par%nsims-1
            if (myid .eq. mod(ct-1,nproc)) then
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' processing sim ', isim
-              simproc = floor(ct/real(nproc)) + 1
+              simproc = ceiling(ct/real(nproc))
               call compute_alphalm(almE1(simproc,:),almB1(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,Par%nside,almalpha1)
               call reorder_and_normalize_alms(almalpha1,one_o_var1,alm1(1,:,:))
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
@@ -646,15 +649,15 @@ program EB_estimator
         deallocate(almalpha2,alm2)
      endif
      
+  else
+     deallocate(clEEfid,clEEobs1,clBBobs1,bl1)
+     if (Par%do_cross) deallocate(clEEobs2,clBBobs2,bl2)     
   endif
 
   deallocate(one_o_var1)
   if (Par%do_cross) deallocate(one_o_var2)
 
   if (Par%compute_biasalpha) deallocate(biasalpha)
-
-  deallocate(clEEfid,clEEobs1,clBBobs1)
-  if (Par%do_cross) deallocate(clEEobs2,clBBobs2)  
 
   call mpi_barrier(mpi_comm_world, mpierr)
   
