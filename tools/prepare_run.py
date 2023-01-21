@@ -160,6 +160,8 @@ input_map1 = {mapfile}
 n_sims = {nsims}
 first_sim = 0
 
+nside = {nside}
+
 output_sigma1 = {sigmafile}
 output_alm1 = {almfile}
 output_cl = {clfile}

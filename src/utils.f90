@@ -399,7 +399,7 @@ contains
     
   end function index2lm
 
-  subroutine compute_alphalm(almE,almB,lmax,lmincmb,lmaxcmb,alphalm)
+  subroutine compute_alphalm(almE,almB,lmax,lmincmb,lmaxcmb,nside,alphalm)
     complex(dpc), dimension(0:) :: almE,almB,alphalm
     complex(dpc), allocatable, dimension(:,:,:) :: alm
     real(dp), allocatable, dimension(:,:) :: M1, M2
@@ -409,7 +409,7 @@ contains
     integer :: ind, imax, lm(2)
 
     imax = Size(almE,dim=1)-1
-    nside = 2**(int(log(dble(lmax))/log(2d0)))
+    if (nside .eq. 0) nside = 2**(int(log(dble(lmax))/log(2d0)))
     npix = nside2npix(nside)
 
     allocate(alm(2,0:lmaxcmb,0:lmaxcmb))

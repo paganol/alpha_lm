@@ -138,8 +138,9 @@ suffix_map2 = {suffix_map2}
 n_sims = {nsims}
 first_sim = {start_sim}
 
-zero_fill = 5
+nside = {nside}
 
+zero_fill = 5
 
 output_sigma1 = {sigmafile1}
 output_sigma2 = {sigmafile2}

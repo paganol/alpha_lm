@@ -132,15 +132,18 @@ program EB_estimator
      call mpi_bcast(Par%endnamemap1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%zerofill,1,mpi_integer,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%niter,1,mpi_integer,0,mpi_comm_world,mpierr)
-     call mpi_bcast(Par%outalmfile1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-     call mpi_bcast(Par%endnamealm1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-     call mpi_bcast(Par%outclfile,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-     call mpi_bcast(Par%endnamecl,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-     if (Par%do_cross) then
-        call mpi_bcast(Par%inmapfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-        call mpi_bcast(Par%endnamemap2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-        call mpi_bcast(Par%outalmfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
-        call mpi_bcast(Par%endnamealm2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+     if (Par%compute_alphalm) then
+        call mpi_bcast(Par%nside,1,mpi_integer,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%outalmfile1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%endnamealm1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%outclfile,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%endnamecl,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        if (Par%do_cross) then
+           call mpi_bcast(Par%inmapfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+           call mpi_bcast(Par%endnamemap2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+           call mpi_bcast(Par%outalmfile2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+           call mpi_bcast(Par%endnamealm2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
+        endif  
      endif
      call mpi_bcast(Par%read_precomputed_alms,1,mpi_logical,0,mpi_comm_world,mpierr)
 
@@ -567,11 +570,11 @@ program EB_estimator
      
      if (Par%nsims .eq. 1) then
         if (myid .eq. 0) then
-           call compute_alphalm(almE1(1,:),almB1(1,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
+           call compute_alphalm(almE1(1,:),almB1(1,:),Par%Lmax,Par%ellmin,Par%ellmax,Par%nside,almalpha1)
            call reorder_and_normalize_alms(almalpha1,one_o_var1,alm1(1,:,:))
            call write_out_alm(Par%outalmfile1,alm1(1,:,:)) 
            if (Par%do_cross) then
-              call compute_alphalm(almE2(1,:),almB2(1,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha2)
+              call compute_alphalm(almE2(1,:),almB2(1,:),Par%Lmax,Par%ellmin,Par%ellmax,Par%nside,almalpha2)
               call reorder_and_normalize_alms(almalpha2,one_o_var2,alm2(1,:,:))
               call write_out_alm(Par%outalmfile2,alm2(1,:,:))
            endif           
@@ -596,13 +599,13 @@ program EB_estimator
            if (myid .eq. mod(ct-1,nproc)) then
               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' processing sim ', isim
               simproc = floor(ct/real(nproc)) + 1
-              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha1)
+              call compute_alphalm(almE1(simproc,:),almB1(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,Par%nside,almalpha1)
               call reorder_and_normalize_alms(almalpha1,one_o_var1,alm1(1,:,:))
               write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
               filename=trim(Par%outalmfile1)//trim(simstr)//trim(Par%endnamealm1)
               call write_out_alm(filename,alm1(1,:,:))
               if (Par%do_cross) then
-                 call compute_alphalm(almE2(simproc,:),almB2(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,almalpha2)
+                 call compute_alphalm(almE2(simproc,:),almB2(simproc,:),Par%Lmax,Par%ellmin,Par%ellmax,Par%nside,almalpha2)
                  call reorder_and_normalize_alms(almalpha2,one_o_var2,alm2(1,:,:))
                  write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
                  filename=trim(Par%outalmfile2)//trim(simstr)//trim(Par%endnamealm2)

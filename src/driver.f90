@@ -81,6 +81,7 @@ contains
     endif
 
     if (P%compute_alphalm) then
+       P%nside=parse_int(handle,'nside',0)
        P%outalmfile1=parse_string(handle,'output_alm1','outputs/almhat1.fits') 
        if (P%do_cross) then
           P%outalmfile2=parse_string(handle,'output_alm2','outputs/almhat2.fits')

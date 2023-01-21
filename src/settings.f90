@@ -15,7 +15,7 @@ module settings
      character(len=FILENAMELEN) :: inbeamfile2,endnamemap2,endnamealm2,innoisefile2
      character(len=FILENAMELEN) :: inmaskfile1,inmaskfile2
      integer :: Lmax,ellmin,ellmax,zerofill
-     integer :: nsims,ssim,niter
+     integer :: nsims,ssim,niter,nside
      character(len=FILENAMELEN) :: inmapfile1, inclfile, outalmfile1,outsigmafile1,outsigmafile2,outclfile
      character(len=FILENAMELEN) :: inmapfile2, outalmfile2
      character(len=FILENAMELEN) :: outbiasfile, endnamebias
