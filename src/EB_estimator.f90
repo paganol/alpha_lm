@@ -205,7 +205,7 @@ program EB_estimator
         if (.not. Par%read_precomputed_alms) then
            call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
            if (myid .ne. 0) allocate(mask1(0:npix-1,1:3))
-           call mpi_bcast(mask1,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+           call mpi_bcast(mask1,npix*3,mpi_real8,0,mpi_comm_world,mpierr)
         else
            if (myid .eq. 0) deallocate(mask1)
         endif
@@ -217,7 +217,7 @@ program EB_estimator
            if (.not. Par%read_precomputed_alms) then
               call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
               if (myid .ne. 0) allocate(mask2(0:npix-1,1:3))
-              call mpi_bcast(mask2,npix*3,mpi_real4,0,mpi_comm_world,mpierr)
+              call mpi_bcast(mask2,npix*3,mpi_real8,0,mpi_comm_world,mpierr)
            else
               if (myid .eq. 0) deallocate(mask2)
            endif
