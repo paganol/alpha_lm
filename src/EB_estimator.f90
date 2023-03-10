@@ -103,6 +103,7 @@ program EB_estimator
   call mpi_bcast(Par%ellmax,1,mpi_integer,0,mpi_comm_world, mpierr)
   call mpi_bcast(Par%compute_alphalm,1,mpi_logical,0,mpi_comm_world,mpierr)
   call mpi_bcast(Par%compute_biasalpha,1,mpi_logical,0,mpi_comm_world,mpierr)
+  if (Par%compute_biasalpha) call mpi_bcast(Par%subtract_bias,1,mpi_logical,0,mpi_comm_world,mpierr)
   call mpi_bcast(Par%do_cross,1,mpi_logical,0,mpi_comm_world,mpierr)
   
   if (myid .ne. 0) then
