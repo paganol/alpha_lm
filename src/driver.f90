@@ -63,6 +63,7 @@ contains
     endif
 
     if (P%compute_alphalm .or. P%compute_biasalpha) then
+       P%compute_fskyl = parse_lgt(handle,'compute_fsky_l',.false.)
        P%read_precomputed_alms=parse_lgt(handle,'read_precomputed_alms',.false.)
        P%inmapfile1=parse_string(handle,'input_map1','inputs/map1.fits')
        P%inmaskfile1=parse_string(handle,'input_mask1','')
@@ -77,6 +78,11 @@ contains
           if (P%do_cross) then
              P%endnamemap2=parse_string(handle,'suffix_map2','.fits')
           endif
+       endif
+       if (P%compute_fskyl) then
+          P%nsims_mask=parse_int(handle,'nsims_mask',100)
+          P%ampsignal=parse_real(handle,'amp_signal_for_mask',1.0)
+          P%outfskyfile=parse_string(handle,'output_fsky_l','outputs/fsky_l.txt')
        endif
     endif
 

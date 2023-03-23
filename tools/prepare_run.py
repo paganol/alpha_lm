@@ -27,7 +27,6 @@ save_alpha = True
 lmin = 2
 lmax = 512#1500
 
-Lmin = 0
 Lmax = 500
 
 lmax_gen = lmax
@@ -156,6 +155,8 @@ noise_file1 = ''
 noise_E1 = {noiseP}
 
 input_map1 = {mapfile}
+
+compute_fsky_l = F
 
 n_sims = {nsims}
 first_sim = 0

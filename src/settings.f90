@@ -16,11 +16,13 @@ module settings
      character(len=FILENAMELEN) :: inmaskfile1,inmaskfile2
      integer :: Lmax,ellmin,ellmax,zerofill
      integer :: nsims,ssim,niter,nside
+     integer :: nsims_mask
      character(len=FILENAMELEN) :: inmapfile1, inclfile, outalmfile1,outsigmafile1,outsigmafile2,outclfile
      character(len=FILENAMELEN) :: inmapfile2, outalmfile2
-     character(len=FILENAMELEN) :: outbiasfile, endnamebias
+     character(len=FILENAMELEN) :: outbiasfile, endnamebias,outfskyfile
      logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias, do_cross, read_precomputed_alms
-     real(dp) :: noiseE1,noiseB1,noiseE2,noiseB2
+     logical :: compute_fskyl
+     real(dp) :: noiseE1,noiseB1,noiseE2,noiseB2,ampsignal
   end Type Params
 
 contains

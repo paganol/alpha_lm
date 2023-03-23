@@ -18,18 +18,21 @@ program EB_estimator
   integer :: ind,indmax,indLMmax,usedellpmax,lm(2)
   integer :: iellp,ellpmin,ellpmax,iell
   integer :: isim,iL,maxsimperproc,simproc
-  integer(i8b) :: npix
+  integer(i8b) :: npix,ipix
   logical :: apply_mask1=.false.,apply_mask2=.false.
-  real(dp), allocatable, dimension(:) :: one_o_var1,one_o_var2,wig2
+  real(dp), allocatable, dimension(:) :: one_o_var1,one_o_var2,wig2,fsky_l,fsky_l_den
   real(dp), allocatable, dimension(:) :: F_EB1,F_BE1,clEEfid,clEEobs1,clBBobs1
   real(dp), allocatable, dimension(:) :: F_EB2,F_BE2,clEEobs2,clBBobs2
   real(dp), allocatable, dimension(:,:) :: clEEmap1,clBBmap1,clEEmap12,clBBmap12,biasalpha
   complex(dpc), allocatable, dimension(:,:) :: almE1,almB1,almE2,almB2
   complex(dpc), allocatable, dimension(:,:,:) :: alm1,alm2
+  complex(spc), allocatable, dimension(:,:,:) :: alm
   complex(dpc), allocatable, dimension(:) :: almalpha1,almalpha2
   real(dp), allocatable,dimension(:,:) :: clfid,wl1,bl1,nl1,wl2,bl2,nl2
+  real(sp), allocatable,dimension(:) :: maskt,map
   real(dp), allocatable,dimension(:,:) :: mask1,mask2
-  real(dp) :: factor,Gl,fsky1,fsky2 
+  real(sp), allocatable,dimension(:,:) :: numerator,denominator
+  real(dp) :: factor,Gl,fsky1,fsky2,amp 
   integer :: t0,t1,t2,t3,t4,clock_rate,clock_max,myunit,ct
   character(len=FILENAMELEN) :: mapname, filename
   character(len=16) :: simstr
@@ -133,6 +136,7 @@ program EB_estimator
      call mpi_bcast(Par%endnamemap1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%zerofill,1,mpi_integer,0,mpi_comm_world,mpierr)
      call mpi_bcast(Par%niter,1,mpi_integer,0,mpi_comm_world,mpierr)
+     call mpi_bcast(Par%compute_fskyl,1,mpi_logical,0,mpi_comm_world,mpierr)
      if (Par%compute_alphalm) then
         call mpi_bcast(Par%nside,1,mpi_integer,0,mpi_comm_world,mpierr)
         call mpi_bcast(Par%outalmfile1,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
@@ -146,39 +150,14 @@ program EB_estimator
            call mpi_bcast(Par%endnamealm2,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
         endif  
      endif
-     call mpi_bcast(Par%read_precomputed_alms,1,mpi_logical,0,mpi_comm_world,mpierr)
 
-     indmax = lm2index(Par%ellmax,Par%ellmax,Par%ellmax) 
-     if (Par%nsims .eq. 1) then
-        if (myid .eq. 0) then
-           allocate(almE1(1,0:indmax))
-           allocate(almB1(1,0:indmax))
-           almE1=0
-           almB1=0
-        endif
-     else
-        maxsimperproc = ceiling(Par%nsims/real(nproc)) 
-        allocate(almE1(maxsimperproc,0:indmax))
-        allocate(almB1(maxsimperproc,0:indmax))     
-        almE1=0
-        almB1=0
+     if (Par%compute_fskyl) then
+        call mpi_bcast(Par%ampsignal,1,mpi_real8,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%nsims_mask,1,mpi_integer,0,mpi_comm_world,mpierr)
+        call mpi_bcast(Par%outfskyfile,FILENAMELEN,mpi_character,0,mpi_comm_world,mpierr)
      endif
-     
-     if (Par%do_cross) then
-        if (Par%nsims .eq. 1) then
-           if (myid .eq. 0) then
-              allocate(almE2(1,0:indmax))
-              allocate(almB2(1,0:indmax))
-              almE2=0
-              almB2=0
-           endif
-        else
-           allocate(almE2(maxsimperproc,0:indmax))
-           allocate(almB2(maxsimperproc,0:indmax))
-           almE2=0
-           almB2=0
-        endif
-     endif
+
+     call mpi_bcast(Par%read_precomputed_alms,1,mpi_logical,0,mpi_comm_world,mpierr)
 
      !mask
      if (myid .eq. 0) then
@@ -203,7 +182,7 @@ program EB_estimator
      call mpi_barrier(mpi_comm_world, mpierr)  
      call mpi_bcast(apply_mask1,1,mpi_logical,0,mpi_comm_world,mpierr)
      if (apply_mask1) then
-        if (.not. Par%read_precomputed_alms) then
+        if ((.not. Par%read_precomputed_alms) .or. (Par%compute_fskyl))then
            call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
            if (myid .ne. 0) allocate(mask1(0:npix-1,1:3))
            call mpi_bcast(mask1,npix*3,mpi_real8,0,mpi_comm_world,mpierr)
@@ -215,7 +194,7 @@ program EB_estimator
      if (Par%do_cross) then
         call mpi_bcast(apply_mask2,1,mpi_logical,0,mpi_comm_world,mpierr)
         if (apply_mask2) then
-           if (.not. Par%read_precomputed_alms) then
+           if ((.not. Par%read_precomputed_alms) .or. (Par%compute_fskyl)) then
               call mpi_bcast(npix,1,mpi_integer8,0,mpi_comm_world,mpierr)
               if (myid .ne. 0) allocate(mask2(0:npix-1,1:3))
               call mpi_bcast(mask2,npix*3,mpi_real8,0,mpi_comm_world,mpierr)
@@ -226,6 +205,87 @@ program EB_estimator
         endif
      endif
      call mpi_barrier(mpi_comm_world, mpierr)
+
+     if ((myid .eq. 0) .and. (Par%compute_fskyl) .and. (Par%feedback .gt. 1)) write(*,*) 'Compute fsky_l'
+     if ((Par%compute_fskyl) .and. (apply_mask1 .or. apply_mask2)) then
+        allocate(fsky_l(0:Par%Lmax),fsky_l_den(0:Par%Lmax))
+        fsky_l = 0.d0
+        fsky_l_den = 0.d0
+        allocate(numerator(0:Par%Lmax,1:1),denominator(0:Par%Lmax,1:1))
+        allocate(map(0:npix-1))
+        allocate(alm(1:1,0:Par%Lmax,0:Par%Lmax))
+
+        allocate(maskt(0:npix-1))
+        maskt = 1.d0
+        if (apply_mask1) maskt = maskt*mask1(:,2)
+        if (apply_mask2) maskt = maskt*mask2(:,2)
+        call rand_init(rng_handle, 12345+myid, 6789012+myid)
+        amp = Par%ampsignal*PI/180.d0/60.d0/sqrt(FOURPI/npix)
+
+        do isim=1,Par%nsims_mask
+            if (myid .eq. mod(isim-1,nproc)) then
+               if (Par%feedback .gt. 3) write(0,*) 'Proc ', myid,' computing fsky_l of sim: ', isim
+               do ipix=0,npix
+                  map(ipix) = amp*rand_gauss(rng_handle)
+               enddo
+               call map2alm(Par%nside, Par%Lmax, Par%Lmax,map*maskt, alm)
+               call alm2cl(Par%Lmax, Par%Lmax,alm,numerator)
+               call map2alm(Par%nside, Par%Lmax, Par%Lmax,map, alm)
+               call alm2cl(Par%Lmax, Par%Lmax,alm,denominator)
+               fsky_l = fsky_l + numerator(:,1)
+               fsky_l_den = fsky_l_den + denominator(:,1)
+            endif
+        enddo
+        fsky_l = fsky_l/fsky_l_den
+        call mpi_barrier(mpi_comm_world, mpierr)
+        call mpi_allreduce(mpi_in_place,fsky_l,Par%Lmax+1,mpi_real8,mpi_sum,mpi_comm_world,mpierr)
+        if (myid .eq. 0) then
+          fsky_l = fsky_l/Par%nsims_mask
+          open(newunit=myunit,file=trim(Par%outfskyfile),status='replace',form='formatted')
+          do iL=0,Par%Lmax
+             write(myunit,'(I4,*(E15.7))') iL,fsky_l(iL)
+          enddo
+          close(myunit)
+        endif
+        deallocate(fsky_l,fsky_l_den,numerator,denominator,maskt,map,alm)
+        if (Par%read_precomputed_alms) then
+           if (apply_mask1) deallocate(mask1)
+           if (Par%do_cross .and. apply_mask2) deallocate(mask2) 
+        endif
+     endif
+
+     !allocation alms
+     indmax = lm2index(Par%ellmax,Par%ellmax,Par%ellmax)
+     if (Par%nsims .eq. 1) then
+        if (myid .eq. 0) then
+           allocate(almE1(1,0:indmax))
+           allocate(almB1(1,0:indmax))
+           almE1=0
+           almB1=0
+        endif
+     else
+        maxsimperproc = ceiling(Par%nsims/real(nproc))
+        allocate(almE1(maxsimperproc,0:indmax))
+        allocate(almB1(maxsimperproc,0:indmax))
+        almE1=0
+        almB1=0
+     endif
+
+     if (Par%do_cross) then
+        if (Par%nsims .eq. 1) then
+           if (myid .eq. 0) then
+              allocate(almE2(1,0:indmax))
+              allocate(almB2(1,0:indmax))
+              almE2=0
+              almB2=0
+           endif
+        else
+           allocate(almE2(maxsimperproc,0:indmax))
+           allocate(almB2(maxsimperproc,0:indmax))
+           almE2=0
+           almB2=0
+        endif
+     endif
 
      if ((myid .eq. 0) .and. (Par%feedback .gt. 1)) write(*,*) 'Read maps'
      if (Par%nsims .eq. 1) then
