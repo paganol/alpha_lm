@@ -236,16 +236,16 @@ program EB_estimator
                fsky_l_den = fsky_l_den + denominator(:,1)
             endif
         enddo
-        fsky_l = fsky_l/fsky_l_den
         call mpi_barrier(mpi_comm_world, mpierr)
+        call mpi_allreduce(mpi_in_place,fsky_l_den,Par%Lmax+1,mpi_real8,mpi_sum,mpi_comm_world,mpierr)
         call mpi_allreduce(mpi_in_place,fsky_l,Par%Lmax+1,mpi_real8,mpi_sum,mpi_comm_world,mpierr)
         if (myid .eq. 0) then
-          fsky_l = fsky_l/Par%nsims_mask
-          open(newunit=myunit,file=trim(Par%outfskyfile),status='replace',form='formatted')
-          do iL=0,Par%Lmax
-             write(myunit,'(I4,*(E15.7))') iL,fsky_l(iL)
-          enddo
-          close(myunit)
+           fsky_l = fsky_l/fsky_l_den
+           open(newunit=myunit,file=trim(Par%outfskyfile),status='replace',form='formatted')
+           do iL=0,Par%Lmax
+              write(myunit,'(I4,*(E15.7))') iL,fsky_l(iL)
+           enddo
+           close(myunit)
         endif
         deallocate(fsky_l,fsky_l_den,numerator,denominator,maskt,map,alm)
         if (Par%read_precomputed_alms) then
