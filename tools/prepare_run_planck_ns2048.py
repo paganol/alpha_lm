@@ -1,8 +1,8 @@
 import numpy as np
 import healpy as hp
 
-rootcode='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/alpha_lm/'
-rootglobal='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/runs/'
+rootcode='/marconi_work/INF23_lspe/lpagano0/test_alpha_lm/alpha_lm/'
+rootglobal='/marconi_work/INF23_lspe/lpagano0/test_alpha_lm/runs/'
 
 rootindir = rootglobal+'inputs/'
 rootinmaps = '/marconi_scratch/userexternal/lpagano0/commander/' 
@@ -22,12 +22,11 @@ nsims = 301
 start_sim = 0
 
 lmin = 50
-lmax = 750
+lmax = 2500
 
-Lmin = 0
-Lmax = 500
+Lmax = 2500
 
-namerun = 'commander_ns2048_Lmin'+str(Lmin).zfill(4)+'_Lmax'+str(Lmax).zfill(4)+'_lmin'+str(lmin).zfill(4)+'_lmax'+str(lmax).zfill(4)+'_maskstd'
+namerun = 'commander_ns2048_Lmax'+str(Lmax).zfill(4)+'_lmin'+str(lmin).zfill(4)+'_lmax'+str(lmax).zfill(4)+'_maskstd'
 
 lmax_beam = lmax
 
@@ -37,7 +36,7 @@ fiducialfile = rootindir+'ffp10_lensedCls.dat'
 paramfile = rootparamdir+'params_'+namerun+'.ini'
 slurmfile = rootslurmdir+'slurm_'+namerun+'.sl' 
 
-mask_file = '/marconi_work/INF22_indark/mbortola/masks/COM_Mask_CMB-common-HM-Misspix-Mask-Pol_2048_R3.00.fits'
+mask_file = '/marconi_work/INF23_indark/mbortola/masks/COM_Mask_CMB-common-HM-Misspix-Mask-Pol_2048_R3.00.fits'
 
 if read_alms:   
     mapfile1 = rootinmaps+'dx12_v3_commander_cmb_noise_hm1_mc_alm_lmax'+str(lmax).zfill(4)+'_maskstd_'
@@ -78,9 +77,9 @@ hp.write_cl(beamfile,beam.T,overwrite=True)
 
 nl = np.zeros((lmax+1,2))
 for i in range(nsimsnoise):
-    d = np.load('/marconi_work/INF22_indark/mbortola/spectra/spectra_anafast/PR3_mc_commander_onlyhm1noise_autospectra/spectra_nside2048_lmax1500_'+str(i).zfill(5)+'.npy')
-    nl[:,0] += d[0:lmax+1,2]
-    nl[:,1] += d[0:lmax+1,3]
+    d = np.load(rootinmaps+'dx12_v3_commander_noise_hm1_mc_spectra_lmax2500_fullsky_'+str(i).zfill(5)+'.npy')
+    nl[:,0] += d[1,0:lmax+1] * 1e12
+    nl[:,1] += d[2,0:lmax+1] * 1e12
 
 nl /= nsimsnoise
 
@@ -91,9 +90,9 @@ np.savetxt(noisefile1,np.column_stack([np.arange(lmax+1),nl]))
 
 nl = np.zeros((lmax+1,2))
 for i in range(nsimsnoise):
-    d = np.load('/marconi_work/INF22_indark/mbortola/spectra/spectra_anafast/PR3_mc_commander_onlyhm2noise_autospectra/spectra_nside2048_lmax1500_'+str(i).zfill(5)+'.npy')
-    nl[:,0] += d[0:lmax+1,2]
-    nl[:,1] += d[0:lmax+1,3]
+    d = np.load(rootinmaps+'dx12_v3_commander_noise_hm2_mc_spectra_lmax2500_fullsky_'+str(i).zfill(5)+'.npy')
+    nl[:,0] += d[1,0:lmax+1] * 1e12
+    nl[:,1] += d[2,0:lmax+1] * 1e12
 
 nl /= nsimsnoise
 
@@ -118,7 +117,6 @@ number_of_iterations = 3
 ellmin = {lmin}
 ellmax = {lmax}
 
-Lmin = {Lmin} 
 Lmax = {Lmax}
 
 cl_file = {fiducialfile}
@@ -140,8 +138,9 @@ suffix_map2 = {suffix_map2}
 n_sims = {nsims}
 first_sim = {start_sim}
 
-zero_fill = 5
+nside = {nside}
 
+zero_fill = 5
 
 output_sigma1 = {sigmafile1}
 output_sigma2 = {sigmafile2}
@@ -163,7 +162,7 @@ slurm = """#!/bin/bash -l
 #SBATCH -t 0:30:00
 #SBATCH -J run_job
 #SBATCH -o run_job.log
-#SBATCH -A INF22_lspe
+#SBATCH -A INF23_lspe
 #SBATCH --export=ALL
 #SBATCH --mem=182000
 #SBATCH --mail-type=ALL

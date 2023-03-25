@@ -1,8 +1,8 @@
 import numpy as np
 import healpy as hp
 
-rootcode='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/alpha_lm/'
-rootglobal='/marconi_work/INF22_lspe/lpagano0/test_alpha_lm/runs/'
+rootcode='/marconi_work/INF23_lspe/lpagano0/test_alpha_lm/alpha_lm/'
+rootglobal='/marconi_work/INF23_lspe/lpagano0/test_alpha_lm/runs/'
 
 rootindir = rootglobal+'inputs/'
 rootoutdir = rootglobal+'outputs/'
@@ -27,7 +27,6 @@ save_alpha = True
 lmin = 2
 lmax = 512#1500
 
-Lmin = 0
 Lmax = 500
 
 lmax_gen = lmax
@@ -157,8 +156,12 @@ noise_E1 = {noiseP}
 
 input_map1 = {mapfile}
 
+compute_fsky_l = F
+
 n_sims = {nsims}
 first_sim = 0
+
+nside = {nside}
 
 output_sigma1 = {sigmafile}
 output_alm1 = {almfile}
@@ -178,7 +181,7 @@ slurm = """#!/bin/bash -l
 #SBATCH -t 0:30:00
 #SBATCH -J run_job
 #SBATCH -o run_job.log
-#SBATCH -A INF22_lspe
+#SBATCH -A INF23_lspe
 #SBATCH --export=ALL
 #SBATCH --mem=182000
 #SBATCH --mail-type=ALL

@@ -29,7 +29,6 @@ contains
 
     P%ellmin=parse_int(handle,'ellmin',2)
     P%ellmax=parse_int(handle,'ellmax',100)
-    P%Lmin=parse_int(handle,'Lmin',0)
     P%Lmax=parse_int(handle,'Lmax',100)
 
     P%do_cross=parse_lgt(handle,'do_cross',.false.)
@@ -64,6 +63,7 @@ contains
     endif
 
     if (P%compute_alphalm .or. P%compute_biasalpha) then
+       P%compute_fskyl = parse_lgt(handle,'compute_fsky_l',.false.)
        P%read_precomputed_alms=parse_lgt(handle,'read_precomputed_alms',.false.)
        P%inmapfile1=parse_string(handle,'input_map1','inputs/map1.fits')
        P%inmaskfile1=parse_string(handle,'input_mask1','')
@@ -79,9 +79,15 @@ contains
              P%endnamemap2=parse_string(handle,'suffix_map2','.fits')
           endif
        endif
+       if (P%compute_fskyl) then
+          P%nsims_mask=parse_int(handle,'nsims_mask',100)
+          P%ampsignal=parse_real(handle,'amp_signal_for_mask',1.0)
+          P%outfskyfile=parse_string(handle,'output_fsky_l','outputs/fsky_l.txt')
+       endif
     endif
 
     if (P%compute_alphalm) then
+       P%nside=parse_int(handle,'nside',0)
        P%outalmfile1=parse_string(handle,'output_alm1','outputs/almhat1.fits') 
        if (P%do_cross) then
           P%outalmfile2=parse_string(handle,'output_alm2','outputs/almhat2.fits')
