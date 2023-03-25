@@ -283,7 +283,7 @@ contains
           write (simstr,fmt='(i'//trim(strzerofill)//'.'//trim(strzerofill)//')') isim
           clname=trim(filename)//trim(simstr)//trim(endname)
           if (present(alms2)) then
-             call alm2cl(lmax,lmax,alms1(ct:ct,:,:),alms2(1:1,:,:),cl)
+             call alm2cl(lmax,lmax,alms1(ct:ct,:,:),alms2(ct:ct,:,:),cl)
           else
              call alm2cl(lmax,lmax,alms1(ct:ct,:,:),cl)
           endif

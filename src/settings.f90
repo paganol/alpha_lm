@@ -8,6 +8,7 @@ module settings
 
   integer,parameter,public :: myTT=1,myEE=2,myBB=3,myTE=4,myTB=5,myEB=6
   integer,parameter,public :: myT=1,myE=2,myB=3
+  
   !parameters
   Type Params
      integer :: feedback
