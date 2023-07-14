@@ -22,7 +22,7 @@ module settings
      character(len=FILENAMELEN) :: inmapfile2, outalmfile2
      character(len=FILENAMELEN) :: outbiasfile, endnamebias,outfskyfile
      logical :: compute_alphalm, compute_alphacl, compute_biasalpha, subtract_bias, do_cross, read_precomputed_alms
-     logical :: compute_fskyl
+     logical :: compute_fskyl,amp_in_dl
      real(dp) :: noiseE1,noiseB1,noiseE2,noiseB2,ampsignal
   end Type Params
 

@@ -82,6 +82,7 @@ contains
        if (P%compute_fskyl) then
           P%nsims_mask=parse_int(handle,'nsims_mask',100)
           P%ampsignal=parse_real(handle,'amp_signal_for_mask',1.0)
+          P%amp_in_dl=parse_lgt(handle,'amp_in_dl',.true.)
           P%outfskyfile=parse_string(handle,'output_fsky_l','outputs/fsky_l.txt')
        endif
     endif
