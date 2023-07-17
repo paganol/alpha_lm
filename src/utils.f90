@@ -182,7 +182,7 @@ contains
        clname=filename
        open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
        do il=0,lmax
-          write(myunit,'(I4,*(E15.7))') il,cls(1,il)
+          write(myunit,'(I5,*(E15.7))') il,cls(1,il)
        enddo
        close(myunit)
     else
@@ -193,7 +193,7 @@ contains
           clname=trim(filename)//trim(simstr)//trim(endname)
           open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
           do il=0,lmax
-             write(myunit,'(I4,*(E15.7))') il,cls(ct,il)
+             write(myunit,'(I5,*(E15.7))') il,cls(ct,il)
           enddo
           close(myunit)
           ct=ct+1
@@ -273,7 +273,7 @@ contains
        if (present(bias)) cl(lmin:lmax,1) = cl(lmin:lmax,1) - bias(1,:) 
        open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
        do il=lmin,lmax
-          write(myunit,'(I4,*(E15.7))') il,cl(il,1)
+          write(myunit,'(I5,*(E15.7))') il,cl(il,1)
        enddo
        close(myunit)
     else
@@ -290,7 +290,7 @@ contains
           if (present(bias)) cl(lmin:lmax,1) = cl(lmin:lmax,1) - bias(ct,:)
           open(newunit=myunit,file=trim(clname),status='replace',form='formatted')
           do il=lmin,lmax
-             write(myunit,'(I4,*(E15.7))') il,cl(il,1)
+             write(myunit,'(I5,*(E15.7))') il,cl(il,1)
           enddo
           close(myunit)
           ct=ct+1
@@ -323,7 +323,7 @@ contains
     
     open(newunit=myunit,file=trim(filename),status='replace',form='formatted')
     do il=0,lmax
-       write(myunit,'(I4,*(E15.7))') il,cl(il,1)
+       write(myunit,'(I5,*(E15.7))') il,cl(il,1)
     enddo
     close(myunit)
   

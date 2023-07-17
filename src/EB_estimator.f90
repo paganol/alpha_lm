@@ -271,7 +271,7 @@ program EB_estimator
            fsky_l = fsky_l/fsky_l_den
            open(newunit=myunit,file=trim(Par%outfskyfile),status='replace',form='formatted')
            do iL=0,Par%Lmax
-              write(myunit,'(I4,*(E15.7))') iL,fsky_l(iL),fsky_l_den(iL)
+              write(myunit,'(I5,*(E15.7))') iL,fsky_l(iL),fsky_l_den(iL)
            enddo
            close(myunit)
         endif
@@ -571,13 +571,13 @@ program EB_estimator
      if (Par%feedback .gt. 1) write(0,*) 'Write out sigma'
      open(newunit=myunit,file=trim(Par%outsigmafile1),status='replace',form='formatted')
      do iL=0,Par%Lmax
-        write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/one_o_var1(iL))
+        write(myunit,'(I5,*(E15.7))') iL,sqrt(1.0/one_o_var1(iL))
      enddo
      close(myunit)
      if (Par%do_cross) then
         open(newunit=myunit,file=trim(Par%outsigmafile2),status='replace',form='formatted')
         do iL=0,Par%Lmax
-           write(myunit,'(I4,*(E15.7))') iL,sqrt(1.0/one_o_var2(iL))
+           write(myunit,'(I5,*(E15.7))') iL,sqrt(1.0/one_o_var2(iL))
         enddo
         close(myunit)
      endif
